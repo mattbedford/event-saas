@@ -28,12 +28,36 @@ class RegistrationResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return (string) Registration::whereDate('created_at', today())->count();
+        $needsAttention = Registration::whereIn('registration_status', ['payment_failed', 'payment_processing'])->count();
+
+        if ($needsAttention > 0) {
+            return (string) $needsAttention;
+        }
+
+        return (string) Registration::where('registration_status', 'confirmed')->count();
     }
 
     public static function getNavigationBadgeColor(): ?string
     {
-        return 'info';
+        $needsAttention = Registration::whereIn('registration_status', ['payment_failed', 'payment_processing'])->count();
+
+        if ($needsAttention > 0) {
+            return 'danger';
+        }
+
+        return 'success';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        $needsAttention = Registration::whereIn('registration_status', ['payment_failed', 'payment_processing'])->count();
+
+        if ($needsAttention > 0) {
+            return "{$needsAttention} registration(s) need attention";
+        }
+
+        $confirmed = Registration::where('registration_status', 'confirmed')->count();
+        return "{$confirmed} confirmed registration(s)";
     }
 
     public static function form(Form $form): Form
@@ -73,6 +97,22 @@ class RegistrationResource extends Resource
 
                 Forms\Components\Section::make('Payment Information')
                     ->schema([
+                        Forms\Components\Select::make('registration_status')
+                            ->label('Registration Status')
+                            ->options([
+                                'draft' => 'Draft (Not Submitted)',
+                                'pending_payment' => 'Pending Payment (Sent to Stripe)',
+                                'payment_processing' => 'Payment Processing (Completing...)',
+                                'confirmed' => 'Confirmed (Complete)',
+                                'abandoned' => 'Abandoned (User Gave Up)',
+                                'payment_failed' => 'Payment Failed (Can Retry)',
+                            ])
+                            ->required()
+                            ->default('draft')
+                            ->live()
+                            ->helperText('Current stage in the registration flow')
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('payment_status')
                             ->options([
                                 'pending' => 'Pending',
@@ -160,7 +200,39 @@ class RegistrationResource extends Resource
                     ->sortable()
                     ->limit(30),
 
+                Tables\Columns\TextColumn::make('registration_status')
+                    ->label('Status')
+                    ->badge()
+                    ->colors([
+                        'gray' => 'draft',
+                        'info' => 'pending_payment',
+                        'warning' => 'payment_processing',
+                        'success' => 'confirmed',
+                        'secondary' => 'abandoned',
+                        'danger' => 'payment_failed',
+                    ])
+                    ->formatStateUsing(fn ($state) => match($state) {
+                        'draft' => 'Draft',
+                        'pending_payment' => 'Awaiting Payment',
+                        'payment_processing' => 'Processing...',
+                        'confirmed' => 'Confirmed',
+                        'abandoned' => 'Abandoned',
+                        'payment_failed' => 'Payment Failed',
+                        default => ucwords(str_replace('_', ' ', $state)),
+                    })
+                    ->sortable()
+                    ->tooltip(fn ($state) => match($state) {
+                        'draft' => 'User filled form but hasn\'t submitted payment yet',
+                        'pending_payment' => 'Stripe checkout session created, waiting for user to pay',
+                        'payment_processing' => 'User completed Stripe checkout, waiting for confirmation',
+                        'confirmed' => 'Registration fully confirmed and paid',
+                        'abandoned' => 'User abandoned checkout without completing',
+                        'payment_failed' => 'Payment failed, user can retry with same email',
+                        default => 'Unknown status',
+                    }),
+
                 Tables\Columns\TextColumn::make('payment_status')
+                    ->label('Payment')
                     ->badge()
                     ->colors([
                         'warning' => 'pending',
@@ -222,7 +294,21 @@ class RegistrationResource extends Resource
                     ->preload()
                     ->multiple(),
 
+                Tables\Filters\SelectFilter::make('registration_status')
+                    ->label('Registration Status')
+                    ->options([
+                        'draft' => 'Draft (Not Submitted)',
+                        'pending_payment' => 'Awaiting Payment',
+                        'payment_processing' => 'Processing Payment',
+                        'confirmed' => 'Confirmed',
+                        'abandoned' => 'Abandoned',
+                        'payment_failed' => 'Payment Failed',
+                    ])
+                    ->multiple()
+                    ->default(['confirmed']),
+
                 Tables\Filters\SelectFilter::make('payment_status')
+                    ->label('Payment Status')
                     ->options([
                         'pending' => 'Pending',
                         'paid' => 'Paid',
@@ -343,6 +429,61 @@ class RegistrationResource extends Resource
                             ->send();
                     })
                     ->visible(fn ($record) => in_array($record->attendance_status, ['registered', 'no_show'])),
+
+                Tables\Actions\Action::make('reset_for_retry')
+                    ->label('Reset for Retry')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Reset Registration for Retry?')
+                    ->modalDescription('This will reset the registration to draft state and release the coupon reservation, allowing the user to retry payment with the same email.')
+                    ->action(function ($record) {
+                        // Release coupon reservation if exists
+                        if ($reservation = $record->couponReservation) {
+                            app(\App\Services\CouponService::class)->releaseReservation($reservation);
+                        }
+
+                        // Reset to draft
+                        $record->update([
+                            'registration_status' => 'draft',
+                            'payment_status' => 'pending',
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Registration Reset')
+                            ->body('User can now retry registration with the same email.')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn ($record) => in_array($record->registration_status, ['payment_failed', 'abandoned'])),
+
+                Tables\Actions\Action::make('mark_confirmed_manually')
+                    ->label('Force Confirm')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Manually Confirm Registration?')
+                    ->modalDescription('Use this if payment was received outside of Stripe or if the webhook failed. This will mark the registration as confirmed and confirm the coupon reservation.')
+                    ->action(function ($record) {
+                        // Confirm coupon reservation if exists
+                        if ($reservation = $record->couponReservation) {
+                            app(\App\Services\CouponService::class)->confirmReservation($reservation);
+                        }
+
+                        // Mark as confirmed
+                        $record->update([
+                            'registration_status' => 'confirmed',
+                            'payment_status' => 'paid',
+                            'confirmed_at' => now(),
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Registration Confirmed')
+                            ->body('Manually confirmed - coupon reservation confirmed.')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn ($record) => in_array($record->registration_status, ['payment_processing', 'draft', 'pending_payment'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -478,7 +619,33 @@ class RegistrationResource extends Resource
 
                 Infolists\Components\Section::make('Payment Information')
                     ->schema([
+                        Infolists\Components\TextEntry::make('registration_status')
+                            ->label('Registration Status')
+                            ->badge()
+                            ->colors([
+                                'gray' => 'draft',
+                                'info' => 'pending_payment',
+                                'warning' => 'payment_processing',
+                                'success' => 'confirmed',
+                                'secondary' => 'abandoned',
+                                'danger' => 'payment_failed',
+                            ])
+                            ->formatStateUsing(fn ($state) => match($state) {
+                                'draft' => 'Draft (Not Submitted)',
+                                'pending_payment' => 'Awaiting Payment',
+                                'payment_processing' => 'Processing Payment',
+                                'confirmed' => 'Confirmed',
+                                'abandoned' => 'Abandoned',
+                                'payment_failed' => 'Payment Failed',
+                                default => ucwords(str_replace('_', ' ', $state)),
+                            }),
+                        Infolists\Components\TextEntry::make('confirmed_at')
+                            ->label('Confirmed At')
+                            ->dateTime()
+                            ->placeholder('Not confirmed yet')
+                            ->visible(fn ($record) => $record->registration_status === 'confirmed'),
                         Infolists\Components\TextEntry::make('payment_status')
+                            ->label('Payment Status')
                             ->badge()
                             ->colors([
                                 'warning' => 'pending',
@@ -508,6 +675,39 @@ class RegistrationResource extends Resource
                             ->placeholder('—'),
                     ])
                     ->columns(2),
+
+                Infolists\Components\Section::make('Coupon Reservation')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('couponReservation.status')
+                            ->label('Reservation Status')
+                            ->badge()
+                            ->colors([
+                                'warning' => 'reserved',
+                                'success' => 'confirmed',
+                                'gray' => 'released',
+                                'danger' => 'expired',
+                            ])
+                            ->formatStateUsing(fn ($state) => ucfirst($state))
+                            ->placeholder('No active reservation'),
+                        Infolists\Components\TextEntry::make('couponReservation.expires_at')
+                            ->label('Reservation Expires')
+                            ->dateTime()
+                            ->placeholder('—')
+                            ->color(fn ($record) =>
+                                $record->couponReservation &&
+                                $record->couponReservation->expires_at &&
+                                $record->couponReservation->expires_at < now()
+                                    ? 'danger'
+                                    : 'success'
+                            ),
+                        Infolists\Components\TextEntry::make('couponReservation.confirmed_at')
+                            ->label('Confirmed At')
+                            ->dateTime()
+                            ->placeholder('—'),
+                    ])
+                    ->columns(3)
+                    ->visible(fn ($record) => $record->couponReservation !== null)
+                    ->collapsible(),
 
                 Infolists\Components\Section::make('Additional Information')
                     ->schema([
