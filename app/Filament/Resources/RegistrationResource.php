@@ -26,6 +26,48 @@ class RegistrationResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    protected static ?string $recordTitleAttribute = 'full_name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return [
+            'full_name',
+            'name',
+            'surname',
+            'email',
+            'company',
+            'phone',
+            'coupon_code',
+            'stripe_session_id',
+            'stripe_payment_intent_id',
+            'event.name',
+            'event.slug',
+        ];
+    }
+
+    public static function getGlobalSearchResultDetails($record): array
+    {
+        return [
+            'Event' => $record->event->name ?? 'Unknown',
+            'Email' => $record->email,
+            'Status' => match($record->registration_status) {
+                'draft' => '📝 Draft',
+                'pending_payment' => '💳 Awaiting Payment',
+                'payment_processing' => '⏳ Processing...',
+                'confirmed' => '✅ Confirmed',
+                'abandoned' => '❌ Abandoned',
+                'payment_failed' => '⚠️ Payment Failed',
+                default => ucwords(str_replace('_', ' ', $record->registration_status)),
+            },
+            'Company' => $record->company ?? '—',
+        ];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['event']);
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $needsAttention = Registration::whereIn('registration_status', ['payment_failed', 'payment_processing'])->count();
@@ -182,6 +224,8 @@ class RegistrationResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->searchable(true)
+            ->searchPlaceholder('Search by name, email, company, event, coupon, or Stripe ID...')
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')
                     ->searchable()
@@ -272,6 +316,29 @@ class RegistrationResource extends Resource
                     ->searchable()
                     ->toggleable()
                     ->placeholder('—'),
+
+                Tables\Columns\TextColumn::make('phone')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
+
+                Tables\Columns\TextColumn::make('stripe_session_id')
+                    ->label('Stripe Session')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->limit(20)
+                    ->placeholder('—')
+                    ->copyable()
+                    ->copyMessage('Stripe Session ID copied!'),
+
+                Tables\Columns\TextColumn::make('stripe_payment_intent_id')
+                    ->label('Payment Intent')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->limit(20)
+                    ->placeholder('—')
+                    ->copyable()
+                    ->copyMessage('Payment Intent ID copied!'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Registered')
@@ -484,6 +551,58 @@ class RegistrationResource extends Resource
                             ->send();
                     })
                     ->visible(fn ($record) => in_array($record->registration_status, ['payment_processing', 'draft', 'pending_payment'])),
+            ])
+            ->headerActions([
+                Tables\Actions\Action::make('bulk_email_check')
+                    ->label('Check Multiple Emails')
+                    ->icon('heroicon-o-magnifying-glass-circle')
+                    ->color('info')
+                    ->form([
+                        Forms\Components\Textarea::make('emails')
+                            ->label('Email Addresses')
+                            ->placeholder('Enter email addresses, one per line or comma-separated')
+                            ->helperText('Paste a list of emails to check if they\'re registered')
+                            ->rows(5)
+                            ->required(),
+                        Forms\Components\Select::make('event_id')
+                            ->label('Filter by Event (Optional)')
+                            ->relationship('event', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('All events'),
+                    ])
+                    ->action(function (array $data) {
+                        // Parse emails
+                        $emailList = preg_split('/[\n,\s]+/', $data['emails']);
+                        $emailList = array_filter(array_map('trim', $emailList));
+
+                        $query = \App\Models\Registration::whereIn('email', $emailList);
+
+                        if (!empty($data['event_id'])) {
+                            $query->where('event_id', $data['event_id']);
+                        }
+
+                        $found = $query->get();
+                        $foundEmails = $found->pluck('email')->toArray();
+                        $notFound = array_diff($emailList, $foundEmails);
+
+                        $message = "Found: " . count($found) . " | Not registered: " . count($notFound);
+
+                        if (count($notFound) > 0) {
+                            $message .= "\n\nNot registered:\n" . implode(', ', array_slice($notFound, 0, 5));
+                            if (count($notFound) > 5) {
+                                $message .= "\n...and " . (count($notFound) - 5) . " more";
+                            }
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Email Check Results')
+                            ->body($message)
+                            ->success()
+                            ->persistent()
+                            ->send();
+                    })
+                    ->modalWidth('lg'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

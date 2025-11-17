@@ -20,6 +20,13 @@ class ListRegistrations extends ListRecords
         ];
     }
 
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\RegistrationSearchTips::class,
+        ];
+    }
+
     public function getTabs(): array
     {
         return [
