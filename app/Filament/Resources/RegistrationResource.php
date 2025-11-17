@@ -171,6 +171,19 @@ class RegistrationResource extends Resource
                     ])
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('attendance_status')
+                    ->label('Attendance')
+                    ->badge()
+                    ->color(fn ($state) => match($state) {
+                        'registered' => 'gray',
+                        'cancelled' => 'warning',
+                        'no_show' => 'danger',
+                        'attended' => 'success',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn ($state) => ucwords(str_replace('_', ' ', $state)))
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('paid_amount')
                     ->label('Amount')
                     ->money('CHF')
@@ -219,6 +232,15 @@ class RegistrationResource extends Resource
                     ])
                     ->multiple(),
 
+                Tables\Filters\SelectFilter::make('attendance_status')
+                    ->options([
+                        'registered' => 'Registered',
+                        'cancelled' => 'Cancelled',
+                        'no_show' => 'No-Show',
+                        'attended' => 'Attended',
+                    ])
+                    ->multiple(),
+
                 Tables\Filters\Filter::make('has_coupon')
                     ->label('Used Coupon')
                     ->query(fn ($query) => $query->whereNotNull('coupon_code')),
@@ -263,6 +285,64 @@ class RegistrationResource extends Resource
                             ->send();
                     })
                     ->visible(fn ($record) => $record->payment_status === 'paid'),
+
+                Tables\Actions\Action::make('cancel_registration')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Cancel Registration?')
+                    ->modalDescription(fn ($record) => $record->canBeCancelled()
+                        ? "This will cancel the registration and reaccredit the coupon use. Deadline: {$record->getCancellationDeadline()->format('M d, Y H:i')}"
+                        : 'Cancellation deadline has passed. This will be marked as no-show instead.')
+                    ->action(function ($record) {
+                        $success = $record->markAsCancelled();
+
+                        \Filament\Notifications\Notification::make()
+                            ->title($success ? 'Registration Cancelled' : 'Marked as No-Show')
+                            ->body($success
+                                ? 'Registration cancelled and coupon use reaccredited.'
+                                : 'Cancellation deadline passed. Marked as no-show - coupon NOT reaccredited.')
+                            ->status($success ? 'success' : 'warning')
+                            ->send();
+                    })
+                    ->visible(fn ($record) => $record->attendance_status === 'registered'),
+
+                Tables\Actions\Action::make('mark_no_show')
+                    ->label('No-Show')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Mark as No-Show?')
+                    ->modalDescription('This will mark the registrant as a no-show. Coupon use will NOT be reaccredited.')
+                    ->action(function ($record) {
+                        $record->markAsNoShow();
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Marked as No-Show')
+                            ->body('Coupon use has NOT been reaccredited.')
+                            ->warning()
+                            ->send();
+                    })
+                    ->visible(fn ($record) => $record->attendance_status === 'registered'),
+
+                Tables\Actions\Action::make('mark_attended')
+                    ->label('Attended')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Mark as Attended?')
+                    ->modalDescription('Confirm that this person attended the event.')
+                    ->action(function ($record) {
+                        $record->markAsAttended();
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Marked as Attended')
+                            ->body('Attendance confirmed.')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn ($record) => in_array($record->attendance_status, ['registered', 'no_show'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
