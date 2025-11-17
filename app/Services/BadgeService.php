@@ -15,20 +15,37 @@ class BadgeService
     public function generateBadge(Registration $registration): string
     {
         try {
-            // Generate the PDF
-            $pdf = Pdf::loadView('badges.template', [
-                'registration' => $registration,
-                'event' => $registration->event,
-            ]);
+            $event = $registration->event;
+            $template = $event->settings['badge_template'] ?? null;
 
-            // Set paper size (standard badge size: 4" x 3")
-            $pdf->setPaper([0, 0, 288, 216], 'landscape'); // 4" x 3" in points
+            // Determine which template to use
+            if ($template && !empty($template['fields'])) {
+                $pdf = Pdf::loadView('badges.custom-template', [
+                    'registration' => $registration,
+                    'event' => $event,
+                    'template' => $template,
+                ]);
+
+                // Use custom dimensions
+                $width = ($template['width'] ?? 400) * 0.75; // Convert px to points (1px = 0.75pt)
+                $height = ($template['height'] ?? 300) * 0.75;
+                $pdf->setPaper([0, 0, $width, $height], 'landscape');
+            } else {
+                // Fall back to default template
+                $pdf = Pdf::loadView('badges.template', [
+                    'registration' => $registration,
+                    'event' => $event,
+                ]);
+
+                // Set paper size (standard badge size: 4" x 3")
+                $pdf->setPaper([0, 0, 288, 216], 'landscape'); // 4" x 3" in points
+            }
 
             // Generate filename
             $filename = $this->generateFilename($registration);
 
             // Store the PDF
-            $path = "badges/{$registration->event->slug}/{$filename}";
+            $path = "badges/{$event->slug}/{$filename}";
             Storage::put($path, $pdf->output());
 
             // Update registration
@@ -37,6 +54,7 @@ class BadgeService
             Log::info('Badge generated', [
                 'registration_id' => $registration->id,
                 'path' => $path,
+                'template' => $template ? 'custom' : 'default',
             ]);
 
             return $path;
