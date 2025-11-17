@@ -39,4 +39,15 @@ return [
         'secret_key' => env('RECAPTCHA_SECRET_KEY'),
     ],
 
+    'stripe' => [
+        'public_key' => env('STRIPE_PUBLIC_KEY'),
+        'secret_key' => env('STRIPE_SECRET_KEY'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
+    'hubspot' => [
+        'api_key' => env('HUBSPOT_API_KEY'),
+        'portal_id' => env('HUBSPOT_PORTAL_ID'),
+    ],
+
 ];

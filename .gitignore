@@ -22,3 +22,5 @@ Thumbs.db
 buddy.yml
 *.iml
 *.idea
+eventer-reference/core/node_modules/
+eventer-reference/core/dist/
