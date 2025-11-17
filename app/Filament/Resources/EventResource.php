@@ -169,9 +169,9 @@ class EventResource extends Resource
 
                 Tables\Columns\TextColumn::make('registrations_count')
                     ->counts([
-                        'registrations' => fn ($query) => $query->where('payment_status', 'paid')
+                        'registrations' => fn ($query) => $query->whereIn('payment_status', ['paid', 'pending'])
                     ])
-                    ->label('Sold')
+                    ->label('Registered')
                     ->badge()
                     ->color(fn ($record) => $record->isNearlyFull() ? 'danger' : 'success'),
 

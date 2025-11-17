@@ -55,7 +55,7 @@ class RegistrationController extends Controller
                 'message' => 'Sorry, this event is sold out! We have reached maximum capacity.',
                 'capacity_info' => [
                     'max_seats' => $event->max_seats,
-                    'sold' => $event->paidRegistrationsCount(),
+                    'registered' => $event->activeRegistrationsCount(),
                     'available' => 0,
                 ],
             ], 403);
@@ -227,7 +227,7 @@ class RegistrationController extends Controller
                 'is_active' => $event->is_active,
                 'capacity' => [
                     'max_seats' => $event->max_seats,
-                    'sold' => $event->paidRegistrationsCount(),
+                    'registered' => $event->activeRegistrationsCount(),
                     'available' => $event->remainingSeats(),
                     'has_available_seats' => $event->hasAvailableSeats(),
                     'is_nearly_full' => $event->isNearlyFull(),
@@ -307,14 +307,14 @@ class RegistrationController extends Controller
             ], 409);
         }
 
-        // Check event capacity (skip payment users still count against capacity)
+        // Check event capacity (all registrations count against capacity)
         if (!$event->hasAvailableSeats()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Event has reached maximum capacity',
                 'capacity_info' => [
                     'max_seats' => $event->max_seats,
-                    'sold' => $event->paidRegistrationsCount(),
+                    'registered' => $event->activeRegistrationsCount(),
                     'available' => 0,
                 ],
             ], 403);

@@ -73,6 +73,18 @@ class Event extends Model
     }
 
     /**
+     * Get active registrations count (for capacity calculation)
+     * Counts ALL registrations (paid + pending) that occupy a seat
+     * This includes free voucher registrations which are marked as 'paid'
+     */
+    public function activeRegistrationsCount(): int
+    {
+        return $this->registrations()
+            ->whereIn('payment_status', ['paid', 'pending'])
+            ->count();
+    }
+
+    /**
      * Get total revenue for this event
      */
     public function totalRevenue(): float
@@ -92,7 +104,7 @@ class Event extends Model
             return null;
         }
 
-        return max(0, $this->max_seats - $this->paidRegistrationsCount());
+        return max(0, $this->max_seats - $this->activeRegistrationsCount());
     }
 
     /**
@@ -117,7 +129,7 @@ class Event extends Model
             return false;
         }
 
-        $occupancyRate = ($this->paidRegistrationsCount() / $this->max_seats) * 100;
+        $occupancyRate = ($this->activeRegistrationsCount() / $this->max_seats) * 100;
         return $occupancyRate >= 90;
     }
 
@@ -130,7 +142,7 @@ class Event extends Model
             return null;
         }
 
-        return round(($this->paidRegistrationsCount() / $this->max_seats) * 100, 1);
+        return round(($this->activeRegistrationsCount() / $this->max_seats) * 100, 1);
     }
 
     /**
