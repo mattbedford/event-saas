@@ -7,9 +7,11 @@ use App\Models\Event;
 use App\Models\Registration;
 use App\Services\RegistrationService;
 use App\Services\CouponService;
+use App\Services\HubspotService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class RegistrationController extends Controller
 {
@@ -212,5 +214,146 @@ class RegistrationController extends Controller
                 'is_active' => $event->is_active,
             ],
         ]);
+    }
+
+    /**
+     * Create an administrative registration (speakers, VIPs, comped attendees)
+     *
+     * POST /api/admin/registrations
+     *
+     * This endpoint allows external systems to add registrations programmatically.
+     * Requires API token authentication via Bearer token in Authorization header.
+     *
+     * Use cases:
+     * - Adding speakers to the event
+     * - Comping VIP attendees
+     * - Bulk importing registrations from other systems
+     *
+     * Example:
+     * curl -X POST https://your-domain.com/api/admin/registrations \
+     *   -H "Authorization: Bearer YOUR_API_TOKEN" \
+     *   -H "Content-Type: application/json" \
+     *   -d '{
+     *     "event_slug": "web-summit-2025",
+     *     "email": "speaker@example.com",
+     *     "full_name": "Jane Doe",
+     *     "company": "Tech Corp",
+     *     "phone": "+41 123 456 789",
+     *     "skip_payment": true,
+     *     "notes": "Keynote speaker - comped ticket"
+     *   }'
+     */
+    public function storeAdmin(Request $request): JsonResponse
+    {
+        // Validate API token
+        $apiToken = $request->bearerToken();
+        if (!$apiToken || $apiToken !== config('services.api_token')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized - invalid API token',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'event_slug' => 'required|string|exists:events,slug',
+            'email' => 'required|email',
+            'full_name' => 'required|string|max:255',
+            'company' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'coupon_code' => 'nullable|string',
+            'skip_payment' => 'nullable|boolean',
+            'notes' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $event = Event::where('slug', $request->event_slug)->firstOrFail();
+
+        // Check if email is already registered
+        if ($this->registrationService->isEmailRegistered($event, $request->email)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This email is already registered for this event',
+                'registration' => Registration::where('event_id', $event->id)
+                    ->where('email', $request->email)
+                    ->first()
+                    ->only(['id', 'email', 'full_name', 'payment_status']),
+            ], 409);
+        }
+
+        try {
+            // Create registration
+            $registration = Registration::create([
+                'event_id' => $event->id,
+                'email' => $request->email,
+                'full_name' => $request->full_name,
+                'company' => $request->company,
+                'phone' => $request->phone,
+                'ticket_price' => $event->ticket_price,
+                'discount_amount' => $request->skip_payment ? $event->ticket_price : 0,
+                'paid_amount' => $request->skip_payment ? 0 : $event->ticket_price,
+                'expected_amount' => $request->skip_payment ? 0 : $event->ticket_price,
+                'coupon_code' => $request->coupon_code,
+                'payment_status' => $request->skip_payment ? 'paid' : 'pending',
+                'metadata' => [
+                    'source' => 'admin_api',
+                    'notes' => $request->notes,
+                    'created_via' => 'api',
+                ],
+            ]);
+
+            // Add to Hubspot if configured
+            if ($event->hubspot_list_id) {
+                try {
+                    $hubspotService = app(HubspotService::class);
+                    $hubspotService->addContactToList(
+                        $registration->email,
+                        $event->hubspot_list_id,
+                        [
+                            'firstname' => explode(' ', $registration->full_name)[0] ?? '',
+                            'lastname' => explode(' ', $registration->full_name, 2)[1] ?? '',
+                            'company' => $registration->company,
+                            'phone' => $registration->phone,
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Failed to add admin registration to Hubspot', [
+                        'registration_id' => $registration->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Registration created successfully',
+                'registration' => [
+                    'id' => $registration->id,
+                    'email' => $registration->email,
+                    'full_name' => $registration->full_name,
+                    'company' => $registration->company,
+                    'payment_status' => $registration->payment_status,
+                    'paid_amount' => $registration->paid_amount,
+                    'expected_amount' => $registration->expected_amount,
+                    'created_at' => $registration->created_at->toIso8601String(),
+                ],
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Admin registration creation failed', [
+                'event_slug' => $request->event_slug,
+                'email' => $request->email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create registration: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

@@ -56,4 +56,7 @@ return [
         'from_name' => env('BREVO_FROM_NAME', config('app.name')),
     ],
 
+    // API Token for admin endpoints
+    'api_token' => env('API_TOKEN'),
+
 ];

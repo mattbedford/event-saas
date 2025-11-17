@@ -27,6 +27,9 @@ Route::prefix('/events/{eventSlug}')->group(function () {
     Route::post('/validate-coupon', [RegistrationController::class, 'validateCoupon']);
 });
 
+// Admin endpoints (require API token authentication)
+Route::post('/admin/registrations', [RegistrationController::class, 'storeAdmin']);
+
 // Webhooks (no auth - Stripe/Brevo validate signatures)
 Route::post('/webhooks/stripe/{eventSlug}', [WebhookController::class, 'stripe'])
     ->withoutMiddleware(['throttle']);
