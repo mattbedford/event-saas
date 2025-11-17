@@ -14,12 +14,16 @@ class Coupon extends Model
     protected $fillable = [
         'event_id',
         'code',
+        'coupon_type',
+        'scope',
         'hubspot_company_id',
         'hubspot_contact_id',
         'company_name',
         'discount_type',
         'discount_value',
         'max_uses',
+        'max_uses_global',
+        'max_uses_per_event',
         'used_count',
         'valid_from',
         'valid_until',
@@ -35,6 +39,8 @@ class Coupon extends Model
     protected $casts = [
         'discount_value' => 'decimal:2',
         'max_uses' => 'integer',
+        'max_uses_global' => 'integer',
+        'max_uses_per_event' => 'integer',
         'used_count' => 'integer',
         'year' => 'integer',
         'valid_from' => 'datetime',
@@ -276,5 +282,151 @@ class Coupon extends Model
     public function scopeByHubspotCompany($query, string $companyId)
     {
         return $query->where('hubspot_company_id', $companyId);
+    }
+
+    /**
+     * Get actual global uses (across all events in the year)
+     * Excludes cancelled registrations
+     */
+    public function getActualUsesGlobal(): int
+    {
+        return Registration::where('coupon_code', $this->code)
+            ->whereHas('event', function ($query) {
+                $query->whereYear('event_date', $this->year ?? now()->year);
+            })
+            ->whereNotIn('attendance_status', ['cancelled'])
+            ->count();
+    }
+
+    /**
+     * Get actual uses for a specific event
+     * Excludes cancelled registrations
+     */
+    public function getActualUsesForEvent(int $eventId): int
+    {
+        return Registration::where('coupon_code', $this->code)
+            ->where('event_id', $eventId)
+            ->whereNotIn('attendance_status', ['cancelled'])
+            ->count();
+    }
+
+    /**
+     * Get remaining global uses
+     * Returns null if unlimited
+     */
+    public function getRemainingUsesGlobal(): ?int
+    {
+        if ($this->max_uses_global === null) {
+            return null; // Unlimited globally
+        }
+
+        return max(0, $this->max_uses_global - $this->getActualUsesGlobal());
+    }
+
+    /**
+     * Get remaining uses for a specific event
+     * Returns null if unlimited
+     */
+    public function getRemainingUsesForEvent(int $eventId): ?int
+    {
+        if ($this->max_uses_per_event === null) {
+            return null; // Unlimited per event
+        }
+
+        return max(0, $this->max_uses_per_event - $this->getActualUsesForEvent($eventId));
+    }
+
+    /**
+     * Check if coupon can be used for a specific event
+     * Validates both global and per-event limits
+     */
+    public function canBeUsedForEvent(int $eventId): bool
+    {
+        // Check basic validity
+        if (!$this->isValid()) {
+            return false;
+        }
+
+        // Check year expiration
+        if ($this->isExpiredByYear()) {
+            return false;
+        }
+
+        // For event-scoped coupons, verify it's the right event
+        if ($this->scope === 'event' && $this->event_id !== null && $this->event_id !== $eventId) {
+            return false;
+        }
+
+        // Check global limit
+        if ($this->max_uses_global !== null) {
+            $globalRemaining = $this->getRemainingUsesGlobal();
+            if ($globalRemaining !== null && $globalRemaining <= 0) {
+                return false;
+            }
+        }
+
+        // Check per-event limit
+        if ($this->max_uses_per_event !== null) {
+            $eventRemaining = $this->getRemainingUsesForEvent($eventId);
+            if ($eventRemaining !== null && $eventRemaining <= 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get coupon type configuration
+     */
+    public function getTypeConfig(): ?array
+    {
+        return config("coupons.types.{$this->coupon_type}");
+    }
+
+    /**
+     * Get coupon type label
+     */
+    public function getTypeLabel(): string
+    {
+        $config = $this->getTypeConfig();
+        return $config['label'] ?? ucfirst(str_replace('_', ' ', $this->coupon_type));
+    }
+
+    /**
+     * Apply default limits based on coupon type
+     */
+    public function applyTypeDefaults(): void
+    {
+        $config = $this->getTypeConfig();
+
+        if ($config) {
+            $this->max_uses_per_event = $this->max_uses_per_event ?? $config['max_uses_per_event'];
+            $this->max_uses_global = $this->max_uses_global ?? $config['max_uses_global'];
+        }
+    }
+
+    /**
+     * Scope: Get coupons by type
+     */
+    public function scopeByType($query, string $type)
+    {
+        return $query->where('coupon_type', $type);
+    }
+
+    /**
+     * Scope: Get global coupons
+     */
+    public function scopeGlobal($query)
+    {
+        return $query->where('scope', 'global');
+    }
+
+    /**
+     * Scope: Get event-specific coupons
+     */
+    public function scopeEventSpecific($query)
+    {
+        return $query->where('scope', 'event');
     }
 }
