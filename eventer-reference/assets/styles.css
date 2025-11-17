@@ -1,0 +1,604 @@
+#wpcontent {
+    padding-left:0 !important;
+}
+
+.navbar {
+    width:100%;
+    height:60px;
+    background-color: #21D4FD;
+    background-image: linear-gradient(19deg, #21D4FD 0%, #B721FF 100%);
+}
+
+.navbar-inner, .navbar-inner .menu ul {
+    display:flex;
+    justify-content:space-between;
+    max-width:1000px;
+    margin:0 auto;
+}
+.navbar-inner {
+    align-items:center;
+}
+.navbar-inner .menu ul li.active {
+    border-bottom:2px solid white;
+}
+.logo {
+    height:30px;
+    width:auto;
+    padding:10px 20px;
+}
+.navbar-inner .menu ul li {
+    margin:0 10px;
+}
+.navbar-inner .menu ul li button {
+    border:none;
+    outline:none;
+    background:none;
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+}
+
+.admin-main {
+    padding:40px;
+    min-height:90vh;
+    background:white;
+}
+
+
+
+.sub-section {
+    display:flex;
+    height:100%;
+}
+.side-column {
+    flex:0 1 15%;
+    height:100%;
+    padding-right:40px;
+}
+
+.main-column {
+    flex: 0 1 85%;
+    height:100%;
+}
+
+.admin-main > h2 {
+    color: #37bafd; 
+}
+
+.admin-main > h2 svg {
+ width:20px;
+ margin-bottom:-2px;
+ margin-right:10px;
+ margin-left:5px;
+ fill: #37bafd;
+}
+.submenu li button {
+    background:none;
+    border:none;
+    outline:none;
+    height:30px;
+    cursor:pointer;
+    font-weight:600;
+    width:120px;
+    text-align:center;
+}
+.submenu li.active button {
+    background:rgb(210, 210, 210);
+}
+
+
+/*Forms*/
+
+.main-column form, .edit-shelf form {
+    display:flex;
+    flex-direction:column;
+    padding:20px;
+    border:1px solid #ddd;
+    border-radius:5px;
+    width:90%;
+    max-width:900px;
+}
+
+.main-column form label, .edit-shelf form label {
+    display:flex;
+    flex-direction:column;
+    margin-bottom:10px;
+}
+
+
+form .double {
+    display:flex;
+    justify-content:space-between;
+}
+form .double > label {
+    flex:0 1 45%;
+}
+form input {
+    border-color:#ddd !important;
+}
+form label {
+    color:#555 !important;
+}
+form input[type="submit"] {
+    background:#7fc41c;
+    width:120px;
+    border:none;
+    outline:none;
+    padding:8px 20px;
+    cursor:pointer;
+}
+
+.company_type_wrapper select {
+    margin-top:-10px;
+    margin-bottom:15px;
+}
+
+/*Plugin table customizations*/
+.vgt-wrap.black-rhino {
+    min-width:85%;   
+}
+
+.vgt-wrap.black-rhino td,
+.vgt-wrap.black-rhino th {
+    font-size:12px;
+    padding:5px 15px;
+}
+.vgt-wrap__footer * {
+    font-size:12px !important;
+    color:white !important;
+}
+.create-new-registrant, .create-new-coupon {
+    background:none;
+    border:none;
+    outline:none;
+    width:40px;
+}
+.vgt-table.black-rhino td button {
+    border:none;
+    width:50px;
+    padding:5px;
+    background-color:#29c9fd;
+    color:white;
+    cursor:pointer;
+}
+.create-new-registrant svg, .create-new-coupon svg {
+    margin-left:-3px;
+    fill:white;
+    cursor:pointer;
+}
+
+
+tbody .vgt-left-align:last-of-type {
+    min-width:100px !important;
+}
+tbody .vgt-left-align:last-of-type button:first-of-type {
+    width:65px;
+}
+
+tbody .vgt-left-align button.sync-state {
+    display:inline-flex;
+    background:none !important;
+    margin:0 !important;
+    align-items:center;
+    justify-content:center;
+    line-height:0 !important;
+}
+
+.vgt-left-align > div:has(.sync-state) {
+    position:relative;
+     margin-top:-12px;
+ }
+
+button.sync-state {
+    position:relative;
+        bottom:-7px;
+    }
+button.sync-state svg {
+    width:25px;
+}
+button.sync-state svg.all-ok {
+    color:#7fc41c;
+    fill:#7fc41c;
+    pointer-events: none;
+    cursor:not-allowed !important;
+}
+
+button.sync-state svg.sync-me {
+    color:#FF5722;
+    fill:#FF5722;
+}
+
+button.sync-state svg.suspicious {
+    color:#cc2734;
+    fill:#cc2734;
+    pointer-events: none;
+    cursor:not-allowed !important;
+}
+button.sync-state:has(.suspicious),
+button.sync-state:has(.all-ok) {
+    pointer-events: none;
+    cursor:not-allowed !important;
+}
+
+
+.sync-status-notice {
+    position:absolute;
+    top:50px;
+}
+.sync-status-notice svg {
+    width:20px;
+}
+
+.sync-status-notice.suspicious svg {
+    color:#cc2734;
+    fill:#cc2734;
+    margin-bottom:-3px;
+    margin-right:5px;
+}
+.sync-status-notice.suspicious {
+    color:#cc2734;
+}
+
+.sync-status-notice.to-sync svg {
+    color:#FF5722;
+    fill:#FF5722;
+    margin-bottom:-3px;
+    margin-right:5px;
+}
+.sync-status-notice.to-sync {
+    color:#FF5722;
+}
+/*Message box*/
+.message-announce {
+    position:fixed;
+    top:70px;
+    left:25%;
+    width:600px;
+    max-width:80%;
+    background:white;
+    padding:10px 20px;
+    border-radius:5px;
+    border-left:5px solid #7fc41c; 
+    box-shadow:0 0 7px 3px rgba(0,0,0,0.2);
+    z-index:5;
+}
+.message-announce .closer {
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:#eee;
+    border:none;
+    outline:none;
+    width:20px;
+    height:20px;
+    color:#333;
+    text-align:center;
+    padding:0;
+    margin:0;
+    cursor:pointer;
+}
+
+/*Modal shelf on form row edit*/
+.edit-shelf {
+    position:fixed;
+    overflow-y:scroll;
+    min-height:99.9vh;
+    height:100%;
+    right:0;
+    top:0;
+    width:60vw;
+    max-width:700px;
+    background:white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.07), 
+                0 2px 4px rgba(0,0,0,0.07), 
+                0 4px 8px rgba(0,0,0,0.07), 
+                0 8px 16px rgba(0,0,0,0.07),
+                0 16px 32px rgba(0,0,0,0.07), 
+                0 32px 64px rgba(0,0,0,0.07);
+}
+.content-wrap {
+    height: 90vh;
+    padding: 50px 100px 250px 50px;
+}
+
+.options-title {
+    display:block;
+    margin-bottom:10px;
+    padding-top:30px;
+}
+.options-title * {
+    display:inline;
+    color:#37bafd;
+    fill:#37bafd;
+}
+.options-title svg {
+    width:20px;
+    margin-bottom:-3px;
+}
+
+
+.close-button {
+    position:absolute;
+    top:75px;
+    right:100px;
+    background:none;
+    border:none;
+    outline:none;
+    width:40px;
+    cursor:pointer;
+}
+
+.checkbox-wrap {
+    display:flex;
+    align-items:center;
+    margin-top:-20px;
+}
+.checkbox-wrap p {
+    padding-bottom:5px;
+    margin-left:10px;
+}
+.form-button {
+    display:inline-block !important;
+    width:140px;
+    border:none;
+    outline:none;
+    cursor:pointer;
+    padding:8px 12px;
+    color:white;
+}
+
+.save-edits {
+    background:#7fc41c;
+}
+.delete-registration {
+background: #d76163;
+}
+.hubspot-sync {
+    background:#FF5722;
+}
+
+#other-recipient, #custom-headliners {
+    max-width:25rem;
+}
+.coupon-link {
+    text-decoration:none;
+}
+
+tr.abandoned {
+    background:#d7d7d7;
+}
+tr.abandoned td {
+    color: #d76163 !important;
+}
+
+.edit-shelf li.pending {
+    display:inline-block;
+    color:white;
+    background:#d76163;
+    padding:3px 6px;
+}
+.sync-all-section {
+    display:inline-block;
+    margin-top:100px;
+    background:#efefef;
+    padding:20px;
+    width:50%;
+}
+.sync-all-section h3 {
+    font-weight:600;
+    color: #37bafd;
+}
+.sync-all-section svg {
+    width:25px;
+    margin-bottom:-6px;
+    margin-right:5px;
+}
+.sync-all-section button {
+    border:none;
+    outline:none;
+    background:#FF5722;
+    padding:8px 25px;
+    color:white;
+    cursor:pointer;
+}
+
+.registrations-table svg.edit-me {
+    width:25px;
+    fill:white;
+    margin-top:-3px;
+    margin-right:-3px;
+}
+
+.registrations-table .vgt-table.black-rhino td button:first-of-type {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:30px;
+    height:30px;
+    text-align:center;
+    border-radius:4px;
+    margin-bottom:-14px;
+}
+
+.registrations-table .vgt-table.black-rhino tr td:last-of-type {
+    padding:10px;
+}
+.registrations-table .vgt-table.black-rhino tr td:last-of-type > div {
+    display:flex;
+    align-items: center !important;
+    margin:-10px 0 0 0  !important;
+}
+.export-section {
+    display: inline-block;
+    margin-top: 50px;
+    background: #efefef;
+    padding: 20px;
+    width: 50%;
+}
+.export-section h3 {
+    color:#37bafd;
+    padding-bottom:20px;
+}
+.export-section h3 svg {
+    width:30px;
+    margin-bottom:-6px;
+}
+.export-section a {
+    background:#7fc41c;
+    padding:8px 25px;
+    color:white;
+    text-decoration:none;
+}
+
+.chart-section {
+    display:flex;
+    flex:0 1 30%;
+    flex-direction:column;
+    min-height:80vh;
+    justify-content: center;
+}
+.chart-section > div {
+    border: 1px solid #ddd;
+    padding:10px;
+    border-radius:6px;
+}
+.chart-section h2 {
+    text-align:center;
+    margin-top:20px;
+}
+.front-desk.sub-section {
+    display:flex;
+    flex-direction:column;
+    min-height:80vh;
+}
+.my-front-desk {
+    display:flex;
+    flex-direction:column-reverse;
+    align-items: flex-start;
+}
+.my-front-desk .double {
+    margin-bottom:10px;
+}
+.my-front-desk .company_type_wrapper select {
+    margin:0;
+}
+
+.ad-hoc-registration-form {
+    width:90%;
+    margin-bottom: 60px;
+    padding:20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.07), 
+                0 2px 4px rgba(0,0,0,0.07), 
+                0 4px 8px rgba(0,0,0,0.07), 
+                0 8px 16px rgba(0,0,0,0.07),
+                0 16px 32px rgba(0,0,0,0.07);
+}
+.ad-hoc-registration-form .form-button {
+    pointer-events: none;
+    cursor: not-allowed;
+}
+.ad-hoc-registration-form .form-button.ready {
+    background:#7fc41c;
+    pointer-events: all;
+    cursor:pointer;
+}
+.ad-hoc-registration-form label,
+.ad-hoc-registration-form > div {
+    display:flex;
+    flex-direction:column !important;
+}
+.text-filter {
+    box-sizing:border-box;
+    background:#4d5c7a;
+    padding:5px;
+    min-width:100%;
+}
+.text-filter input {
+    min-width:50%;
+}
+.text-filter svg {
+    width:20px;
+    margin-bottom:-4px;
+    margin-right:10px;
+}
+.registrations-list table {
+    width:100%;
+    border-collapse:collapse;
+    background:#dfe5ee;
+}
+.registrations-list table th {
+    padding:5px 10px;
+    text-align:left;
+    background:#4d5c7a;
+    color:white;
+}
+.registrations-list table td {
+    padding:5px;
+}
+.registrations-list {
+    width: 90%;
+    width:calc(90% + 40px);
+    padding:0px;
+    min-height:500px;
+    border: 1px solid white;
+}
+.registrations-list table tr {
+    border:1px solid #c9cbcd;
+}
+.ad-hoc-badge-printer {
+    background:none;
+    border:none;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+    color:#b02aff;
+    font-weight:600;
+}
+.my-front-desk .company_type_wrapper select {
+    width:100%;
+ }
+ .ord-arr {
+    display: inline-flex;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transform: rotate(90deg);
+    background: #af2aff;
+    margin-left: 5px;
+    padding: 3px;
+    border-radius: 20px;
+    width: 14px;
+    height: 14px;
+    cursor:pointer;
+ }
+ .check-icon {
+    position:relative;
+    width:20px;
+    margin-bottom:-5px;
+ }
+ .check-button {
+    width:85px !important;
+    max-width:unset;
+ }
+ .check-button svg {
+    width:20px;
+ }
+ .last-col {
+    display:flex;
+ }
+ .check-button.print {
+    width:70px;
+    margin-left:15px;
+    max-width:70px !important;
+    background:#7fc41c !important;
+    margin-left: auto !important;
+ }
+
+ #edit-registrant .double:last-of-type {
+    flex-wrap:wrap;
+}
+
+#edit-registrant .double:last-of-type > div {
+    flex:0 1 100%;
+}
