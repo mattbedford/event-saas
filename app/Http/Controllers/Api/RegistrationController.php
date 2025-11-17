@@ -28,6 +28,24 @@ class RegistrationController extends Controller
     {
         $event = Event::where('slug', $eventSlug)->firstOrFail();
 
+        // Check if registrations are enabled
+        if (!($event->settings['registrations_enabled'] ?? true)) {
+            $messageType = $event->settings['registration_status_message_type'] ?? 'closed';
+            $customMessage = $event->settings['registration_status_message'] ?? null;
+
+            $messages = [
+                'not_open' => 'Registrations are not open yet. Please check back soon.',
+                'closed' => 'Registrations for this event are now closed.',
+                'sold_out' => 'Sorry, this event is sold out!',
+                'custom' => $customMessage ?? 'Registrations are currently closed.',
+            ];
+
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$messageType],
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'name' => 'required|string|max:255',
