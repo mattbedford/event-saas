@@ -29,6 +29,18 @@
         .logo {
             position: absolute;
         }
+        .qr-code {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+        .qr-code img {
+            width: 80px;
+            height: 80px;
+            background: white;
+            padding: 4px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -75,5 +87,12 @@
             </div>
         @endif
     @endforeach
+
+    {{-- QR Code --}}
+    @if($qrCode)
+        <div class="qr-code">
+            <img src="{{ $qrCode }}" alt="QR Code">
+        </div>
+    @endif
 </body>
 </html>
