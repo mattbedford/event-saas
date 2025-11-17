@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\RegistrationController;
+use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\CouponController;
 use Illuminate\Support\Facades\Route;
@@ -21,7 +22,14 @@ use Illuminate\Support\Facades\Route;
 // Get event details
 Route::get('/events/{eventSlug}', [RegistrationController::class, 'getEvent']);
 
-// Registration endpoints
+// Checkout flow (new stateful endpoints)
+Route::prefix('/events/{eventSlug}/checkout')->group(function () {
+    Route::post('/validate', [CheckoutController::class, 'validateCoupon']);
+    Route::post('/initiate', [CheckoutController::class, 'initiateRegistration']);
+    Route::post('/complete', [CheckoutController::class, 'completeRegistration']);
+});
+
+// Legacy registration endpoints (backwards compatibility)
 Route::prefix('/events/{eventSlug}')->group(function () {
     Route::post('/registrations', [RegistrationController::class, 'store']);
     Route::get('/registrations/{email}', [RegistrationController::class, 'show']);
