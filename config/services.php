@@ -50,4 +50,13 @@ return [
         'portal_id' => env('HUBSPOT_PORTAL_ID'),
     ],
 
+    'brevo' => [
+        'api_key' => env('BREVO_API_KEY'),
+        'from_email' => env('BREVO_FROM_EMAIL', 'noreply@example.com'),
+        'from_name' => env('BREVO_FROM_NAME', config('app.name')),
+    ],
+
+    // API Token for admin endpoints
+    'api_token' => env('API_TOKEN'),
+
 ];

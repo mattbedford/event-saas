@@ -55,6 +55,17 @@
             font-size: 12pt;
             opacity: 0.9;
         }
+        .qr-code {
+            text-align: center;
+            margin-top: 10pt;
+        }
+        .qr-code img {
+            width: 80pt;
+            height: 80pt;
+            background: white;
+            padding: 4pt;
+            border-radius: 4pt;
+        }
         .footer {
             text-align: center;
             font-size: 8pt;
@@ -75,6 +86,12 @@
             <div class="name">{{ $registration->full_name }}</div>
             @if($registration->company)
                 <div class="company">{{ $registration->company }}</div>
+            @endif
+
+            @if($qrCode)
+                <div class="qr-code">
+                    <img src="{{ $qrCode }}" alt="QR Code">
+                </div>
             @endif
         </div>
 

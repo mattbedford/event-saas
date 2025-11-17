@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\CouponController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,6 +28,16 @@ Route::prefix('/events/{eventSlug}')->group(function () {
     Route::post('/validate-coupon', [RegistrationController::class, 'validateCoupon']);
 });
 
-// Webhooks (no auth - Stripe validates signatures)
+// Coupon endpoints (public, no auth required)
+Route::get('/coupons/validate', [CouponController::class, 'validate']);
+Route::get('/events/{eventSlug}/coupons', [CouponController::class, 'index']);
+
+// Admin endpoints (require API token authentication)
+Route::post('/admin/registrations', [RegistrationController::class, 'storeAdmin']);
+
+// Webhooks (no auth - Stripe/Brevo validate signatures)
 Route::post('/webhooks/stripe/{eventSlug}', [WebhookController::class, 'stripe'])
+    ->withoutMiddleware(['throttle']);
+
+Route::post('/webhooks/brevo', [WebhookController::class, 'brevo'])
     ->withoutMiddleware(['throttle']);

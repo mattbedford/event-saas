@@ -20,6 +20,7 @@ class Registration extends Model
         'phone',
         'additional_fields',
         'payment_status',
+        'attendance_status',
         'paid_amount',
         'expected_amount',
         'stripe_session_id',
@@ -34,6 +35,8 @@ class Registration extends Model
         'confirmation_sent_at',
         'reminder_sent',
         'reminder_sent_at',
+        'cancelled_at',
+        'attended_at',
     ];
 
     protected $casts = [
@@ -47,6 +50,8 @@ class Registration extends Model
         'confirmation_sent_at' => 'datetime',
         'reminder_sent' => 'boolean',
         'reminder_sent_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'attended_at' => 'datetime',
     ];
 
     /**
@@ -180,5 +185,140 @@ class Registration extends Model
     {
         return $query->where('payment_status', 'paid')
             ->where('confirmation_sent', false);
+    }
+
+    /**
+     * Mark registration as cancelled
+     * Reaccredits coupon use if within cancellation deadline
+     */
+    public function markAsCancelled(): bool
+    {
+        // Check if within cancellation deadline
+        $deadlineHours = config('coupons.cancellation_deadline_hours', 24);
+        $deadline = $this->event->event_date->subHours($deadlineHours);
+
+        if (now()->greaterThan($deadline)) {
+            // Past deadline - treat as no-show instead
+            return false;
+        }
+
+        $this->update([
+            'attendance_status' => 'cancelled',
+            'cancelled_at' => now(),
+        ]);
+
+        // Reaccredit coupon use if applicable
+        if ($this->coupon_code) {
+            $coupon = Coupon::where('code', $this->coupon_code)->first();
+            if ($coupon) {
+                $coupon->decrementUsage();
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Mark registration as no-show
+     * Does NOT reaccredit coupon use
+     */
+    public function markAsNoShow(): void
+    {
+        $this->update([
+            'attendance_status' => 'no_show',
+        ]);
+
+        // Coupon use is NOT reaccredited for no-shows
+    }
+
+    /**
+     * Mark registration as attended
+     */
+    public function markAsAttended(): void
+    {
+        $this->update([
+            'attendance_status' => 'attended',
+            'attended_at' => now(),
+        ]);
+    }
+
+    /**
+     * Check if cancellation is still allowed
+     */
+    public function canBeCancelled(): bool
+    {
+        if ($this->attendance_status !== 'registered') {
+            return false; // Already cancelled, no-show, or attended
+        }
+
+        $deadlineHours = config('coupons.cancellation_deadline_hours', 24);
+        $deadline = $this->event->event_date->subHours($deadlineHours);
+
+        return now()->lessThanOrEqualTo($deadline);
+    }
+
+    /**
+     * Get cancellation deadline
+     */
+    public function getCancellationDeadline(): ?\Carbon\Carbon
+    {
+        $deadlineHours = config('coupons.cancellation_deadline_hours', 24);
+        return $this->event->event_date->copy()->subHours($deadlineHours);
+    }
+
+    /**
+     * Check if registration is cancelled
+     */
+    public function isCancelled(): bool
+    {
+        return $this->attendance_status === 'cancelled';
+    }
+
+    /**
+     * Check if registration was a no-show
+     */
+    public function isNoShow(): bool
+    {
+        return $this->attendance_status === 'no_show';
+    }
+
+    /**
+     * Check if registrant attended
+     */
+    public function hasAttended(): bool
+    {
+        return $this->attendance_status === 'attended';
+    }
+
+    /**
+     * Scope: Get cancelled registrations
+     */
+    public function scopeCancelled($query)
+    {
+        return $query->where('attendance_status', 'cancelled');
+    }
+
+    /**
+     * Scope: Get no-show registrations
+     */
+    public function scopeNoShow($query)
+    {
+        return $query->where('attendance_status', 'no_show');
+    }
+
+    /**
+     * Scope: Get attended registrations
+     */
+    public function scopeAttended($query)
+    {
+        return $query->where('attendance_status', 'attended');
+    }
+
+    /**
+     * Scope: Get active registrations (not cancelled)
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNotIn('attendance_status', ['cancelled']);
     }
 }

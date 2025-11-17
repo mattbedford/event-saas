@@ -6,6 +6,7 @@ use App\Models\Registration;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class BadgeService
 {
@@ -18,12 +19,19 @@ class BadgeService
             $event = $registration->event;
             $template = $event->settings['badge_template'] ?? null;
 
+            // Generate QR code if barcode is enabled for this event
+            $qrCode = null;
+            if ($event->settings['badge_barcode_enabled'] ?? false) {
+                $qrCode = $this->generateQrCode($registration);
+            }
+
             // Determine which template to use
             if ($template && !empty($template['fields'])) {
                 $pdf = Pdf::loadView('badges.custom-template', [
                     'registration' => $registration,
                     'event' => $event,
                     'template' => $template,
+                    'qrCode' => $qrCode,
                 ]);
 
                 // Use custom dimensions
@@ -35,6 +43,7 @@ class BadgeService
                 $pdf = Pdf::loadView('badges.template', [
                     'registration' => $registration,
                     'event' => $event,
+                    'qrCode' => $qrCode,
                 ]);
 
                 // Set paper size (standard badge size: 4" x 3")
@@ -139,5 +148,84 @@ class BadgeService
         }
 
         return $results;
+    }
+
+    /**
+     * Generate QR code for a registration
+     * Contains registration ID and event information
+     */
+    public function generateQrCode(Registration $registration): string
+    {
+        $event = $registration->event;
+
+        // Create QR code data with registration and event info
+        $qrData = json_encode([
+            'registration_id' => $registration->id,
+            'event_id' => $event->id,
+            'event_name' => $event->name,
+            'event_slug' => $event->slug,
+            'attendee_name' => $registration->full_name,
+            'attendee_email' => $registration->email,
+            'ticket_code' => $this->generateTicketCode($registration),
+            'verified_at' => null, // To be updated when scanned
+        ]);
+
+        // Generate QR code as base64 PNG image
+        $qrCode = QrCode::format('png')
+            ->size(200)
+            ->margin(1)
+            ->errorCorrection('H') // High error correction
+            ->generate($qrData);
+
+        // Convert to base64 data URI for embedding in PDF
+        return 'data:image/png;base64,' . base64_encode($qrCode);
+    }
+
+    /**
+     * Generate a unique ticket code for verification
+     */
+    private function generateTicketCode(Registration $registration): string
+    {
+        // Format: EVENT-REG-TIMESTAMP
+        // Example: WEBINAR-12345-20250117
+        $eventPrefix = strtoupper(substr($registration->event->slug, 0, 8));
+        $regId = str_pad($registration->id, 5, '0', STR_PAD_LEFT);
+        $date = $registration->created_at->format('Ymd');
+
+        return "{$eventPrefix}-{$regId}-{$date}";
+    }
+
+    /**
+     * Verify a ticket code from QR scan
+     */
+    public function verifyTicketCode(string $qrData): ?array
+    {
+        try {
+            $data = json_decode($qrData, true);
+
+            if (!$data || !isset($data['registration_id'])) {
+                return null;
+            }
+
+            $registration = Registration::with('event')->find($data['registration_id']);
+
+            if (!$registration) {
+                return null;
+            }
+
+            return [
+                'valid' => true,
+                'registration' => $registration,
+                'event' => $registration->event,
+                'ticket_code' => $data['ticket_code'] ?? null,
+                'already_verified' => !is_null($data['verified_at']),
+            ];
+        } catch (\Exception $e) {
+            Log::error('QR code verification failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

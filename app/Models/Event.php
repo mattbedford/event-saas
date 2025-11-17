@@ -15,6 +15,7 @@ class Event extends Model
         'name',
         'slug',
         'ticket_price',
+        'max_seats',
         'stripe_product_id',
         'hubspot_list_id',
         'event_date',
@@ -72,6 +73,18 @@ class Event extends Model
     }
 
     /**
+     * Get active registrations count (for capacity calculation)
+     * Counts ALL registrations (paid + pending) that occupy a seat
+     * This includes free voucher registrations which are marked as 'paid'
+     */
+    public function activeRegistrationsCount(): int
+    {
+        return $this->registrations()
+            ->whereIn('payment_status', ['paid', 'pending'])
+            ->count();
+    }
+
+    /**
      * Get total revenue for this event
      */
     public function totalRevenue(): float
@@ -79,6 +92,57 @@ class Event extends Model
         return $this->registrations()
             ->whereIn('payment_status', ['paid', 'partial'])
             ->sum('paid_amount');
+    }
+
+    /**
+     * Get remaining available seats
+     * Returns null if max_seats is not set (unlimited)
+     */
+    public function remainingSeats(): ?int
+    {
+        if ($this->max_seats === null) {
+            return null;
+        }
+
+        return max(0, $this->max_seats - $this->activeRegistrationsCount());
+    }
+
+    /**
+     * Check if the event has available seats
+     * Returns true if unlimited or seats available
+     */
+    public function hasAvailableSeats(): bool
+    {
+        if ($this->max_seats === null) {
+            return true; // Unlimited capacity
+        }
+
+        return $this->remainingSeats() > 0;
+    }
+
+    /**
+     * Check if event is nearly full (90% capacity)
+     */
+    public function isNearlyFull(): bool
+    {
+        if ($this->max_seats === null) {
+            return false;
+        }
+
+        $occupancyRate = ($this->activeRegistrationsCount() / $this->max_seats) * 100;
+        return $occupancyRate >= 90;
+    }
+
+    /**
+     * Get capacity percentage filled
+     */
+    public function capacityPercentage(): ?float
+    {
+        if ($this->max_seats === null || $this->max_seats === 0) {
+            return null;
+        }
+
+        return round(($this->activeRegistrationsCount() / $this->max_seats) * 100, 1);
     }
 
     /**
