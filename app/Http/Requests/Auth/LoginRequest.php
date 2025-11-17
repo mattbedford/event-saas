@@ -31,6 +31,11 @@ class LoginRequest extends FormRequest
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
             'recaptcha_token' => ['required', function ($attribute, $value, $fail) {
+                // Skip reCAPTCHA verification in local/testing environments
+                if (app()->environment(['local', 'testing'])) {
+                    return;
+                }
+
                 $response = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
                     'secret' => config('services.recaptcha.secret_key'),
                     'response' => $value,
