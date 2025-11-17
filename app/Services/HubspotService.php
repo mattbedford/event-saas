@@ -26,8 +26,8 @@ class HubspotService
     {
         $event = $registration->event;
 
-        if (!$event->hubspot_api_key) {
-            Log::warning('Hubspot API key not configured for event', [
+        if (!config('services.hubspot.api_key')) {
+            Log::warning('Hubspot API key not configured', [
                 'event_id' => $event->id,
             ]);
             return null;
@@ -35,21 +35,22 @@ class HubspotService
 
         try {
             // Check if contact already exists
-            $existingContact = $this->findContactByEmail(
-                $event,
-                $registration->email
-            );
+            $existingContact = $this->findContactByEmail($registration->email);
 
             if ($existingContact) {
                 // Update existing contact
                 $hubspotId = $this->updateContact(
-                    $event,
                     $existingContact['vid'],
                     $registration
                 );
             } else {
                 // Create new contact
-                $hubspotId = $this->createContact($event, $registration);
+                $hubspotId = $this->createContact($registration);
+            }
+
+            // Add contact to event-specific list if configured
+            if ($event->hubspot_list_id) {
+                $this->addContactToList($hubspotId, $event->hubspot_list_id);
             }
 
             // Update registration with Hubspot ID
@@ -58,6 +59,7 @@ class HubspotService
             Log::info('Synced registration to Hubspot', [
                 'registration_id' => $registration->id,
                 'hubspot_id' => $hubspotId,
+                'list_id' => $event->hubspot_list_id,
             ]);
 
             return $hubspotId;
@@ -74,15 +76,15 @@ class HubspotService
     /**
      * Create a new contact in Hubspot
      */
-    private function createContact(Event $event, Registration $registration): string
+    private function createContact(Registration $registration): string
     {
         $response = $this->client->post('contacts/v1/contact/', [
             'headers' => [
-                'Authorization' => 'Bearer ' . $event->hubspot_api_key,
+                'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
                 'Content-Type' => 'application/json',
             ],
             'json' => [
-                'properties' => $this->buildContactProperties($event, $registration),
+                'properties' => $this->buildContactProperties($registration),
             ],
         ]);
 
@@ -93,18 +95,15 @@ class HubspotService
     /**
      * Update an existing contact in Hubspot
      */
-    private function updateContact(
-        Event $event,
-        string $contactId,
-        Registration $registration
-    ): string {
+    private function updateContact(string $contactId, Registration $registration): string
+    {
         $this->client->post("contacts/v1/contact/vid/{$contactId}/profile", [
             'headers' => [
-                'Authorization' => 'Bearer ' . $event->hubspot_api_key,
+                'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
                 'Content-Type' => 'application/json',
             ],
             'json' => [
-                'properties' => $this->buildContactProperties($event, $registration),
+                'properties' => $this->buildContactProperties($registration),
             ],
         ]);
 
@@ -114,12 +113,12 @@ class HubspotService
     /**
      * Find a contact by email
      */
-    private function findContactByEmail(Event $event, string $email): ?array
+    private function findContactByEmail(string $email): ?array
     {
         try {
             $response = $this->client->get("contacts/v1/contact/email/{$email}/profile", [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . $event->hubspot_api_key,
+                    'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
                 ],
             ]);
 
@@ -133,10 +132,42 @@ class HubspotService
     }
 
     /**
+     * Add a contact to a Hubspot list
+     */
+    private function addContactToList(string $contactId, string $listId): void
+    {
+        try {
+            $this->client->post("contacts/v1/lists/{$listId}/add", [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => [
+                    'vids' => [(int) $contactId],
+                ],
+            ]);
+
+            Log::info('Added contact to Hubspot list', [
+                'contact_id' => $contactId,
+                'list_id' => $listId,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to add contact to Hubspot list', [
+                'contact_id' => $contactId,
+                'list_id' => $listId,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - list addition is not critical
+        }
+    }
+
+    /**
      * Build contact properties array for Hubspot
      */
-    private function buildContactProperties(Event $event, Registration $registration): array
+    private function buildContactProperties(Registration $registration): array
     {
+        $event = $registration->event;
+
         $properties = [
             [
                 'property' => 'email',

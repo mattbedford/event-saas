@@ -20,22 +20,37 @@ class StripeCheckoutService
         string $successUrl,
         string $cancelUrl
     ): StripeSession {
-        // Set Stripe API key for this event
-        Stripe::setApiKey($event->stripe_secret_key);
+        // Set shared Stripe API key
+        Stripe::setApiKey(config('services.stripe.secret_key'));
+
+        $lineItemData = [
+            'quantity' => 1,
+        ];
+
+        // Use event's Stripe Product ID if available, otherwise create inline price data
+        if ($event->stripe_product_id) {
+            // Create a price for the existing product
+            $price = \Stripe\Price::create([
+                'product' => $event->stripe_product_id,
+                'unit_amount' => (int) ($registration->expected_amount * 100), // Stripe uses cents
+                'currency' => 'chf', // Swiss Francs for event pricing
+            ]);
+            $lineItemData['price'] = $price->id;
+        } else {
+            // Fallback to inline price data
+            $lineItemData['price_data'] = [
+                'currency' => 'chf',
+                'product_data' => [
+                    'name' => $event->name . ' - Registration',
+                    'description' => "Registration for {$registration->full_name}",
+                ],
+                'unit_amount' => (int) ($registration->expected_amount * 100), // Stripe uses cents
+            ];
+        }
 
         $sessionData = [
             'payment_method_types' => ['card'],
-            'line_items' => [[
-                'price_data' => [
-                    'currency' => 'usd', // TODO: Make this configurable per event
-                    'product_data' => [
-                        'name' => $event->name . ' - Registration',
-                        'description' => "Registration for {$registration->full_name}",
-                    ],
-                    'unit_amount' => (int) ($registration->expected_amount * 100), // Stripe uses cents
-                ],
-                'quantity' => 1,
-            ]],
+            'line_items' => [$lineItemData],
             'mode' => 'payment',
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
@@ -43,6 +58,7 @@ class StripeCheckoutService
             'customer_email' => $registration->email,
             'metadata' => [
                 'event_id' => $event->id,
+                'event_slug' => $event->slug,
                 'registration_id' => $registration->id,
                 'coupon_code' => $registration->coupon_code ?? '',
             ],
@@ -69,15 +85,16 @@ class StripeCheckoutService
      * Handle Stripe webhook events
      * CRITICAL: This prevents the partial payment status bug!
      */
-    public function handleWebhook(string $payload, string $sigHeader, Event $event): array
+    public function handleWebhook(string $payload, string $sigHeader): array
     {
-        Stripe::setApiKey($event->stripe_secret_key);
+        // Set shared Stripe API key
+        Stripe::setApiKey(config('services.stripe.secret_key'));
 
         try {
-            $event = Webhook::constructEvent(
+            $stripeEvent = Webhook::constructEvent(
                 $payload,
                 $sigHeader,
-                $event->stripe_webhook_secret
+                config('services.stripe.webhook_secret')
             );
         } catch (\Exception $e) {
             Log::error('Stripe webhook signature verification failed', [
@@ -88,25 +105,25 @@ class StripeCheckoutService
 
         $response = ['handled' => false];
 
-        switch ($event->type) {
+        switch ($stripeEvent->type) {
             case 'checkout.session.completed':
-                $response = $this->handleCheckoutCompleted($event->data->object);
+                $response = $this->handleCheckoutCompleted($stripeEvent->data->object);
                 break;
 
             case 'payment_intent.succeeded':
-                $response = $this->handlePaymentSucceeded($event->data->object);
+                $response = $this->handlePaymentSucceeded($stripeEvent->data->object);
                 break;
 
             case 'payment_intent.payment_failed':
-                $response = $this->handlePaymentFailed($event->data->object);
+                $response = $this->handlePaymentFailed($stripeEvent->data->object);
                 break;
 
             case 'payment_intent.partially_funded':
-                $response = $this->handlePartialPayment($event->data->object);
+                $response = $this->handlePartialPayment($stripeEvent->data->object);
                 break;
 
             default:
-                Log::info('Unhandled Stripe webhook event', ['type' => $event->type]);
+                Log::info('Unhandled Stripe webhook event', ['type' => $stripeEvent->type]);
         }
 
         return $response;
@@ -135,7 +152,7 @@ class StripeCheckoutService
         $paymentIntentId = $session->payment_intent;
 
         if ($paymentIntentId) {
-            Stripe::setApiKey($registration->event->stripe_secret_key);
+            // API key already set to shared key in handleWebhook()
             $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
 
             $amountPaid = $paymentIntent->amount / 100; // Convert from cents
@@ -255,9 +272,9 @@ class StripeCheckoutService
     /**
      * Retrieve a checkout session
      */
-    public function getSession(Event $event, string $sessionId): StripeSession
+    public function getSession(string $sessionId): StripeSession
     {
-        Stripe::setApiKey($event->stripe_secret_key);
+        Stripe::setApiKey(config('services.stripe.secret_key'));
         return StripeSession::retrieve($sessionId);
     }
 }

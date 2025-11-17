@@ -27,6 +27,9 @@ class RegistrationService
                 $data['coupon_code'] ?? null
             );
 
+            // Determine if this is a free registration (100% discount)
+            $isFree = $pricing['final_price'] <= 0;
+
             // Create the registration
             $registration = Registration::create([
                 'event_id' => $event->id,
@@ -36,9 +39,9 @@ class RegistrationService
                 'company' => $data['company'] ?? null,
                 'phone' => $data['phone'] ?? null,
                 'additional_fields' => $data['additional_fields'] ?? null,
-                'expected_amount' => $pricing['final_price'],
-                'paid_amount' => 0,
-                'payment_status' => 'pending',
+                'expected_amount' => max(0, $pricing['final_price']),
+                'paid_amount' => $isFree ? 0 : 0,
+                'payment_status' => $isFree ? 'paid' : 'pending',
                 'coupon_code' => $pricing['coupon_code'],
                 'discount_amount' => $pricing['discount_amount'],
             ]);
@@ -60,6 +63,11 @@ class RegistrationService
                     ]);
                     // Continue anyway - registration is created
                 }
+            }
+
+            // If free registration, trigger completion immediately
+            if ($isFree) {
+                $this->completeRegistration($registration);
             }
 
             return $registration;
@@ -167,5 +175,13 @@ class RegistrationService
             ->where('email', $email)
             ->whereIn('payment_status', ['paid', 'partial'])
             ->exists();
+    }
+
+    /**
+     * Check if registration needs payment (i.e., not free/100% discount)
+     */
+    public function needsPayment(Registration $registration): bool
+    {
+        return $registration->expected_amount > 0 && $registration->payment_status !== 'paid';
     }
 }

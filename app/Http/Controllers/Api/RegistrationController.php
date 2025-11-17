@@ -61,14 +61,7 @@ class RegistrationController extends Controller
                 $request->only(['email', 'name', 'surname', 'company', 'phone', 'coupon_code'])
             );
 
-            // Create Stripe checkout session
-            $session = $this->registrationService->createCheckoutSession(
-                $registration,
-                $request->success_url,
-                $request->cancel_url
-            );
-
-            return response()->json([
+            $response = [
                 'success' => true,
                 'registration' => [
                     'id' => $registration->id,
@@ -76,12 +69,30 @@ class RegistrationController extends Controller
                     'name' => $registration->full_name,
                     'expected_amount' => $registration->expected_amount,
                     'discount_amount' => $registration->discount_amount,
+                    'payment_status' => $registration->payment_status,
                 ],
-                'checkout' => [
+            ];
+
+            // Check if payment is needed (i.e., not 100% discount)
+            if ($this->registrationService->needsPayment($registration)) {
+                // Create Stripe checkout session
+                $session = $this->registrationService->createCheckoutSession(
+                    $registration,
+                    $request->success_url,
+                    $request->cancel_url
+                );
+
+                $response['checkout'] = [
                     'session_id' => $session->id,
                     'url' => $session->url,
-                ],
-            ]);
+                ];
+            } else {
+                // 100% discount - redirect directly to success URL
+                $response['redirect_url'] = $request->success_url;
+                $response['message'] = 'Registration completed with 100% discount. No payment required.';
+            }
+
+            return response()->json($response);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

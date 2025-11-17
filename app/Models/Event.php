@@ -15,21 +15,16 @@ class Event extends Model
         'name',
         'slug',
         'ticket_price',
+        'stripe_product_id',
+        'hubspot_list_id',
         'event_date',
         'settings',
-        'stripe_public_key',
-        'stripe_secret_key',
-        'stripe_webhook_secret',
-        'hubspot_api_key',
-        'hubspot_portal_id',
-        'hubspot_settings',
         'is_active',
     ];
 
     protected $casts = [
         'event_date' => 'datetime',
         'settings' => 'array',
-        'hubspot_settings' => 'array',
         'is_active' => 'boolean',
         'ticket_price' => 'decimal:2',
     ];

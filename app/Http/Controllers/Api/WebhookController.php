@@ -19,12 +19,11 @@ class WebhookController extends Controller
     /**
      * Handle Stripe webhook
      *
-     * POST /api/webhooks/stripe/{eventSlug}
+     * POST /api/webhooks/stripe/{eventSlug?}
+     * Note: eventSlug is optional and kept for backward compatibility
      */
-    public function stripe(Request $request, string $eventSlug): JsonResponse
+    public function stripe(Request $request, ?string $eventSlug = null): JsonResponse
     {
-        $event = Event::where('slug', $eventSlug)->firstOrFail();
-
         $payload = $request->getContent();
         $sigHeader = $request->header('Stripe-Signature');
 
@@ -36,7 +35,8 @@ class WebhookController extends Controller
         }
 
         try {
-            $result = $this->stripeService->handleWebhook($payload, $sigHeader, $event);
+            // Use shared webhook handler (no event-specific secret needed)
+            $result = $this->stripeService->handleWebhook($payload, $sigHeader);
 
             return response()->json([
                 'success' => true,
