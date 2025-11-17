@@ -163,7 +163,7 @@ class CheckoutController extends Controller
                     'company' => $request->company,
                     'phone' => $request->phone,
                     'coupon_code' => $request->coupon_code,
-                    'ticket_price' => $event->ticket_price,
+                    'expected_amount' => $event->ticket_price, // Will be updated after coupon validation
                     'payment_status' => 'pending',
                     'registration_status' => 'draft',
                     'attendance_status' => 'registered',
