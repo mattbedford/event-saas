@@ -20,6 +20,7 @@ class Registration extends Model
         'phone',
         'additional_fields',
         'payment_status',
+        'registration_status',
         'attendance_status',
         'paid_amount',
         'expected_amount',
@@ -37,6 +38,7 @@ class Registration extends Model
         'reminder_sent_at',
         'cancelled_at',
         'attended_at',
+        'confirmed_at',
     ];
 
     protected $casts = [
@@ -52,6 +54,7 @@ class Registration extends Model
         'reminder_sent_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'attended_at' => 'datetime',
+        'confirmed_at' => 'datetime',
     ];
 
     /**
@@ -320,5 +323,104 @@ class Registration extends Model
     public function scopeActive($query)
     {
         return $query->whereNotIn('attendance_status', ['cancelled']);
+    }
+
+    /**
+     * Check if registration is confirmed
+     */
+    public function isConfirmed(): bool
+    {
+        return $this->registration_status === 'confirmed';
+    }
+
+    /**
+     * Check if registration is in draft state
+     */
+    public function isDraft(): bool
+    {
+        return $this->registration_status === 'draft';
+    }
+
+    /**
+     * Check if payment is pending
+     */
+    public function isPaymentPending(): bool
+    {
+        return in_array($this->registration_status, ['pending_payment', 'payment_processing']);
+    }
+
+    /**
+     * Mark registration as confirmed
+     */
+    public function markAsConfirmed(): void
+    {
+        $this->update([
+            'registration_status' => 'confirmed',
+            'confirmed_at' => now(),
+        ]);
+    }
+
+    /**
+     * Mark registration as abandoned
+     */
+    public function markAsAbandoned(): void
+    {
+        $this->update([
+            'registration_status' => 'abandoned',
+        ]);
+    }
+
+    /**
+     * Check if registration can be retried/updated
+     * (draft, pending, or failed states allow retry)
+     */
+    public function canBeRetried(): bool
+    {
+        return in_array($this->registration_status, [
+            'draft',
+            'pending_payment',
+            'payment_failed',
+            'abandoned'
+        ]);
+    }
+
+    /**
+     * Scope: Get draft registrations
+     */
+    public function scopeDraft($query)
+    {
+        return $query->where('registration_status', 'draft');
+    }
+
+    /**
+     * Scope: Get confirmed registrations
+     */
+    public function scopeConfirmed($query)
+    {
+        return $query->where('registration_status', 'confirmed');
+    }
+
+    /**
+     * Scope: Get incomplete registrations (not confirmed)
+     */
+    public function scopeIncomplete($query)
+    {
+        return $query->whereIn('registration_status', [
+            'draft',
+            'pending_payment',
+            'payment_processing',
+            'payment_failed',
+            'abandoned'
+        ]);
+    }
+
+    /**
+     * Get coupon reservation for this registration
+     */
+    public function couponReservation()
+    {
+        return $this->hasOne(\App\Models\CouponReservation::class)
+            ->where('status', 'reserved')
+            ->latest();
     }
 }
