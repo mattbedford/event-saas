@@ -229,4 +229,80 @@ class HubspotService
 
         return $results;
     }
+
+    /**
+     * Get companies from a Hubspot list
+     */
+    public function getCompaniesFromList(string $listId): array
+    {
+        try {
+            $response = $this->client->get("contacts/v1/lists/{$listId}/contacts/all", [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
+                ],
+                'query' => [
+                    'count' => 100, // Max per request
+                ],
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+            $companies = [];
+
+            foreach ($data['contacts'] ?? [] as $contact) {
+                $properties = $contact['properties'] ?? [];
+
+                $companies[] = [
+                    'id' => $contact['vid'] ?? $contact['id'] ?? null,
+                    'name' => $properties['company']['value'] ?? $properties['companyname']['value'] ?? 'Unknown Company',
+                    'email' => $properties['email']['value'] ?? null,
+                    'properties' => $properties,
+                ];
+            }
+
+            return $companies;
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch companies from Hubspot list', [
+                'list_id' => $listId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Get all companies from Hubspot (paginated)
+     */
+    public function getAllCompanies(int $limit = 100): array
+    {
+        try {
+            $response = $this->client->get('crm/v3/objects/companies', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . config('services.hubspot.api_key'),
+                ],
+                'query' => [
+                    'limit' => $limit,
+                    'properties' => 'name,domain,city,country',
+                ],
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+
+            return array_map(function ($company) {
+                return [
+                    'id' => $company['id'],
+                    'name' => $company['properties']['name'] ?? 'Unknown',
+                    'domain' => $company['properties']['domain'] ?? null,
+                    'city' => $company['properties']['city'] ?? null,
+                    'country' => $company['properties']['country'] ?? null,
+                ];
+            }, $data['results'] ?? []);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch all companies from Hubspot', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
 }
