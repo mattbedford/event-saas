@@ -42,12 +42,42 @@ class CouponResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Coupon Details')
                     ->schema([
+                        Forms\Components\Select::make('coupon_type')
+                            ->label('Coupon Type')
+                            ->options(function () {
+                                return collect(config('coupons.types'))
+                                    ->mapWithKeys(fn ($config, $key) => [$key => $config['label']]);
+                            })
+                            ->required()
+                            ->default('custom')
+                            ->live()
+                            ->afterStateUpdated(function ($state, callable $set, $get) {
+                                // Auto-populate limits from config when type changes
+                                if ($state && $state !== 'custom') {
+                                    $config = config("coupons.types.{$state}");
+                                    $set('max_uses_per_event', $config['max_uses_per_event']);
+                                    $set('max_uses_global', $config['max_uses_global']);
+                                }
+                            })
+                            ->helperText(fn ($get) => config("coupons.types.{$get('coupon_type')}.description") ?? ''),
+
+                        Forms\Components\Select::make('scope')
+                            ->options([
+                                'event' => 'Event-Specific',
+                                'global' => 'Global (All Events)',
+                            ])
+                            ->required()
+                            ->default('event')
+                            ->live()
+                            ->helperText('Event-specific coupons work for one event only. Global coupons work across all events in the year.'),
+
                         Forms\Components\Select::make('event_id')
                             ->label('Event')
                             ->relationship('event', 'name')
                             ->searchable()
                             ->preload()
-                            ->required()
+                            ->required(fn ($get) => $get('scope') === 'event')
+                            ->visible(fn ($get) => $get('scope') === 'event')
                             ->helperText('Primary event this coupon belongs to'),
 
                         Forms\Components\TextInput::make('code')
@@ -96,15 +126,35 @@ class CouponResource extends Resource
                             ->helperText('Discount amount or percentage'),
 
                         Forms\Components\TextInput::make('max_uses')
-                            ->label('Maximum Uses')
+                            ->label('Maximum Uses (Legacy)')
                             ->numeric()
-                            ->default(10)
-                            ->helperText('Leave empty for unlimited uses')
-                            ->nullable(),
+                            ->helperText('Deprecated - use per-event or global limits instead')
+                            ->nullable()
+                            ->disabled()
+                            ->visible(fn (?Coupon $record) => $record && $record->max_uses),
+
+                        Forms\Components\TextInput::make('max_uses_per_event')
+                            ->label('Max Uses Per Event')
+                            ->numeric()
+                            ->helperText('Maximum times this coupon can be used for a single event. Leave empty for unlimited.')
+                            ->nullable()
+                            ->suffix('uses'),
+
+                        Forms\Components\TextInput::make('max_uses_global')
+                            ->label('Max Uses Globally (Annual)')
+                            ->numeric()
+                            ->helperText('Maximum times this coupon can be used across all events in the year. Leave empty for unlimited.')
+                            ->nullable()
+                            ->suffix('uses'),
 
                         Forms\Components\Placeholder::make('used_count_display')
-                            ->label('Times Used')
+                            ->label('Times Used (Legacy)')
                             ->content(fn (?Coupon $record) => $record ? $record->used_count : 0)
+                            ->visible(fn ($record) => $record !== null && $record->used_count > 0),
+
+                        Forms\Components\Placeholder::make('actual_usage_display')
+                            ->label('Actual Usage (Excludes Cancelled)')
+                            ->content(fn (?Coupon $record) => $record ? $record->getActualUsesGlobal() : 0)
                             ->visible(fn ($record) => $record !== null),
                     ])
                     ->columns(2),
@@ -173,17 +223,39 @@ class CouponResource extends Resource
                     ->icon('heroicon-o-ticket')
                     ->weight('bold'),
 
+                Tables\Columns\TextColumn::make('coupon_type')
+                    ->label('Type')
+                    ->badge()
+                    ->formatStateUsing(fn ($record) => $record->getTypeLabel())
+                    ->color(fn ($state) => match($state) {
+                        'staff' => 'primary',
+                        'member' => 'success',
+                        'staff_guest' => 'info',
+                        'member_guest' => 'warning',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('scope')
+                    ->badge()
+                    ->color(fn ($state) => $state === 'global' ? 'success' : 'gray')
+                    ->formatStateUsing(fn ($state) => ucfirst($state))
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('company_name')
                     ->label('Company')
                     ->searchable()
                     ->sortable()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('event.name')
                     ->label('Event')
                     ->searchable()
                     ->sortable()
-                    ->limit(30),
+                    ->limit(30)
+                    ->placeholder('All Events')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('discount_value')
                     ->label('Discount')
@@ -197,10 +269,26 @@ class CouponResource extends Resource
 
                 Tables\Columns\TextColumn::make('usage')
                     ->label('Uses')
-                    ->formatStateUsing(fn ($record) =>
-                        $record->used_count . ' / ' . ($record->max_uses ?? '∞')
-                    )
-                    ->sortable(['used_count']),
+                    ->formatStateUsing(function ($record) {
+                        $globalUsed = $record->getActualUsesGlobal();
+                        $globalMax = $record->max_uses_global ?? '∞';
+                        return "Global: {$globalUsed} / {$globalMax}";
+                    })
+                    ->description(function ($record) {
+                        if ($record->max_uses_per_event !== null) {
+                            return "Per-event limit: {$record->max_uses_per_event}";
+                        }
+                        return 'No per-event limit';
+                    })
+                    ->badge()
+                    ->color(function ($record) {
+                        if ($record->max_uses_global !== null) {
+                            $percentage = ($record->getActualUsesGlobal() / $record->max_uses_global) * 100;
+                            if ($percentage >= 100) return 'danger';
+                            if ($percentage >= 80) return 'warning';
+                        }
+                        return 'success';
+                    }),
 
                 Tables\Columns\TextColumn::make('year')
                     ->badge()
@@ -265,6 +353,93 @@ class CouponResource extends Resource
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close'),
+
+                Tables\Actions\Action::make('add_global_uses')
+                    ->label('Add Global Uses')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('success')
+                    ->form([
+                        Forms\Components\TextInput::make('additional_uses')
+                            ->label('Additional Uses')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->helperText('Number of global uses to add to this coupon'),
+
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Reason')
+                            ->required()
+                            ->helperText('Why are you adding more uses?'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $oldValue = $record->max_uses_global;
+                        $record->max_uses_global = ($oldValue ?? 0) + $data['additional_uses'];
+
+                        // Track in metadata
+                        $metadata = $record->metadata ?? [];
+                        $metadata['top_ups'] = $metadata['top_ups'] ?? [];
+                        $metadata['top_ups'][] = [
+                            'type' => 'global',
+                            'amount' => $data['additional_uses'],
+                            'old_value' => $oldValue,
+                            'new_value' => $record->max_uses_global,
+                            'reason' => $data['reason'],
+                            'performed_at' => now()->toIso8601String(),
+                            'performed_by' => auth()->user()->name ?? 'System',
+                        ];
+                        $record->metadata = $metadata;
+                        $record->save();
+
+                        Notification::make()
+                            ->title('Global Uses Increased')
+                            ->body("Added {$data['additional_uses']} global uses. New limit: {$record->max_uses_global}")
+                            ->success()
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('add_per_event_uses')
+                    ->label('Add Per-Event Uses')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('warning')
+                    ->form([
+                        Forms\Components\TextInput::make('additional_uses')
+                            ->label('Additional Uses')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->helperText('Number of per-event uses to add'),
+
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Reason')
+                            ->required()
+                            ->helperText('Why are you adding more uses?'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $oldValue = $record->max_uses_per_event;
+                        $record->max_uses_per_event = ($oldValue ?? 0) + $data['additional_uses'];
+
+                        // Track in metadata
+                        $metadata = $record->metadata ?? [];
+                        $metadata['top_ups'] = $metadata['top_ups'] ?? [];
+                        $metadata['top_ups'][] = [
+                            'type' => 'per_event',
+                            'amount' => $data['additional_uses'],
+                            'old_value' => $oldValue,
+                            'new_value' => $record->max_uses_per_event,
+                            'reason' => $data['reason'],
+                            'performed_at' => now()->toIso8601String(),
+                            'performed_by' => auth()->user()->name ?? 'System',
+                        ];
+                        $record->metadata = $metadata;
+                        $record->save();
+
+                        Notification::make()
+                            ->title('Per-Event Uses Increased')
+                            ->body("Added {$data['additional_uses']} per-event uses. New limit: {$record->max_uses_per_event}")
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

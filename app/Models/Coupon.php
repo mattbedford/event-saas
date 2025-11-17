@@ -34,6 +34,7 @@ class Coupon extends Model
         'restricted_to_event_id',
         'notes',
         'restrictions',
+        'metadata',
     ];
 
     protected $casts = [
@@ -48,6 +49,7 @@ class Coupon extends Model
         'is_active' => 'boolean',
         'is_manual' => 'boolean',
         'restrictions' => 'array',
+        'metadata' => 'array',
     ];
 
     /**
