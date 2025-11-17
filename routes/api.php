@@ -27,6 +27,9 @@ Route::prefix('/events/{eventSlug}')->group(function () {
     Route::post('/validate-coupon', [RegistrationController::class, 'validateCoupon']);
 });
 
-// Webhooks (no auth - Stripe validates signatures)
+// Webhooks (no auth - Stripe/Brevo validate signatures)
 Route::post('/webhooks/stripe/{eventSlug}', [WebhookController::class, 'stripe'])
+    ->withoutMiddleware(['throttle']);
+
+Route::post('/webhooks/brevo', [WebhookController::class, 'brevo'])
     ->withoutMiddleware(['throttle']);
