@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\RegistrationResource\Pages;
 use App\Models\Registration;
 use App\Models\Event;
+use App\Services\BadgeService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -12,6 +13,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Response;
 
 class RegistrationResource extends Resource
 {
@@ -279,17 +282,88 @@ class RegistrationResource extends Resource
                         ->deselectRecordsAfterCompletion(),
 
                     Tables\Actions\BulkAction::make('export_badges')
-                        ->label('Export Badges (PDF)')
+                        ->label('Export Badges (ZIP)')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Export Badges')
+                        ->modalDescription(fn ($records) => "Generate and download {$records->count()} badge(s) as a ZIP file?")
                         ->action(function ($records) {
-                            // TODO: Implement bulk badge export
+                            $badgeService = app(BadgeService::class);
+
+                            // Filter only registrations with badges enabled
+                            $registrationsWithBadges = $records->filter(function ($registration) {
+                                return $registration->event->settings['badges_enabled'] ?? true;
+                            });
+
+                            if ($registrationsWithBadges->isEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No Badges Available')
+                                    ->body('None of the selected registrations have badges enabled.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            // Generate unique temp folder for this export
+                            $exportId = uniqid('badge_export_');
+                            $tempDir = storage_path("app/temp/{$exportId}");
+
+                            if (!is_dir($tempDir)) {
+                                mkdir($tempDir, 0755, true);
+                            }
+
+                            $generatedCount = 0;
+                            $failedCount = 0;
+
+                            // Generate all badges
+                            foreach ($registrationsWithBadges as $registration) {
+                                try {
+                                    $badgePath = $badgeService->generateBadge($registration);
+
+                                    // Copy badge to temp directory with clean filename
+                                    $cleanName = preg_replace('/[^A-Za-z0-9\-]/', '_', $registration->full_name);
+                                    $filename = "{$registration->id}_{$cleanName}.pdf";
+
+                                    Storage::copy($badgePath, "temp/{$exportId}/{$filename}");
+                                    $generatedCount++;
+                                } catch (\Exception $e) {
+                                    $failedCount++;
+                                    \Illuminate\Support\Facades\Log::error('Badge generation failed in bulk export', [
+                                        'registration_id' => $registration->id,
+                                        'error' => $e->getMessage(),
+                                    ]);
+                                }
+                            }
+
+                            // Create ZIP file
+                            $zipPath = storage_path("app/temp/{$exportId}.zip");
+                            $zip = new \ZipArchive();
+
+                            if ($zip->open($zipPath, \ZipArchive::CREATE) === true) {
+                                // Add all PDFs to ZIP
+                                $files = glob($tempDir . '/*.pdf');
+                                foreach ($files as $file) {
+                                    $zip->addFile($file, basename($file));
+                                }
+                                $zip->close();
+                            }
+
+                            // Clean up temp directory
+                            array_map('unlink', glob($tempDir . '/*'));
+                            rmdir($tempDir);
+
+                            // Notification
                             \Filament\Notifications\Notification::make()
-                                ->title('Export Started')
-                                ->body('Badge export feature coming soon.')
-                                ->info()
+                                ->title('Badges Exported')
+                                ->body("Generated: {$generatedCount} | Failed: {$failedCount}")
+                                ->success()
                                 ->send();
-                        }),
+
+                            // Download the ZIP
+                            return Response::download($zipPath, "badges_{$exportId}.zip")->deleteFileAfterSend(true);
+                        })
+                        ->deselectRecordsAfterCompletion(),
 
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),

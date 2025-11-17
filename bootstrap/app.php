@@ -18,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (Schedule $schedule): void {
         // Process email chains every 5 minutes
         $schedule->command('email:process-chains')->everyFiveMinutes();
+
+        // Expire old coupons daily at midnight
+        $schedule->command('coupons:expire-old')->daily();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
