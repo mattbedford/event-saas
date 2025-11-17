@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Log;
 
 class StripeCheckoutService
 {
+    public function __construct(
+        private CouponService $couponService,
+        private HubspotService $hubspotService
+    ) {
+    }
     /**
      * Create a Stripe Checkout Session for a registration
      */
@@ -110,6 +115,10 @@ class StripeCheckoutService
                 $response = $this->handleCheckoutCompleted($stripeEvent->data->object);
                 break;
 
+            case 'checkout.session.expired':
+                $response = $this->handleCheckoutExpired($stripeEvent->data->object);
+                break;
+
             case 'payment_intent.succeeded':
                 $response = $this->handlePaymentSucceeded($stripeEvent->data->object);
                 break;
@@ -131,6 +140,7 @@ class StripeCheckoutService
 
     /**
      * Handle checkout session completed
+     * User finished Stripe checkout form - payment is processing
      */
     private function handleCheckoutCompleted($session): array
     {
@@ -148,33 +158,30 @@ class StripeCheckoutService
             return ['handled' => false, 'error' => 'Registration not found'];
         }
 
+        // Update to payment_processing state (user completed Stripe, awaiting payment confirmation)
+        $registration->update([
+            'registration_status' => 'payment_processing',
+            'stripe_session_id' => $session->id,
+        ]);
+
         // Get the payment intent to check actual amount paid
         $paymentIntentId = $session->payment_intent;
 
         if ($paymentIntentId) {
-            // API key already set to shared key in handleWebhook()
-            $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
-
-            $amountPaid = $paymentIntent->amount / 100; // Convert from cents
-
-            // CRITICAL: Always update payment status based on amount actually paid
-            $registration->markAsPaid($amountPaid);
             $registration->update([
                 'stripe_payment_intent_id' => $paymentIntentId,
             ]);
 
-            Log::info('Payment completed', [
+            Log::info('Checkout session completed - payment processing', [
                 'registration_id' => $registration->id,
-                'amount_paid' => $amountPaid,
-                'expected_amount' => $registration->expected_amount,
-                'status' => $registration->payment_status,
+                'registration_status' => 'payment_processing',
+                'payment_intent_id' => $paymentIntentId,
             ]);
 
             return [
                 'handled' => true,
                 'registration_id' => $registration->id,
-                'amount_paid' => $amountPaid,
-                'status' => $registration->payment_status,
+                'status' => 'payment_processing',
             ];
         }
 
@@ -182,7 +189,59 @@ class StripeCheckoutService
     }
 
     /**
+     * Handle checkout session expired
+     * User abandoned checkout - release coupon reservation
+     */
+    private function handleCheckoutExpired($session): array
+    {
+        $registrationId = $session->metadata->registration_id ?? $session->client_reference_id;
+
+        if (!$registrationId) {
+            return ['handled' => false, 'error' => 'No registration ID'];
+        }
+
+        $registration = Registration::find($registrationId);
+
+        if (!$registration) {
+            return ['handled' => false, 'error' => 'Registration not found'];
+        }
+
+        // Mark as abandoned
+        $registration->update([
+            'registration_status' => 'abandoned',
+        ]);
+
+        // Release coupon reservation
+        if ($reservation = $registration->couponReservation) {
+            try {
+                $this->couponService->releaseReservation($reservation);
+                Log::info('Coupon reservation released after checkout expired', [
+                    'registration_id' => $registration->id,
+                    'coupon_code' => $registration->coupon_code,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to release coupon reservation', [
+                    'registration_id' => $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('Checkout session expired - registration abandoned', [
+            'registration_id' => $registration->id,
+            'registration_status' => 'abandoned',
+        ]);
+
+        return [
+            'handled' => true,
+            'registration_id' => $registration->id,
+            'status' => 'abandoned',
+        ];
+    }
+
+    /**
      * Handle successful payment
+     * Payment confirmed - finalize registration
      */
     private function handlePaymentSucceeded($paymentIntent): array
     {
@@ -203,20 +262,62 @@ class StripeCheckoutService
         // CRITICAL: Update payment status based on actual amount
         $registration->markAsPaid($amountPaid);
 
-        Log::info('Payment intent succeeded', [
+        // Mark registration as confirmed
+        $registration->update([
+            'registration_status' => 'confirmed',
+            'confirmed_at' => now(),
+        ]);
+
+        // Confirm coupon reservation (NOW it counts against usage limits)
+        if ($reservation = $registration->couponReservation) {
+            try {
+                $this->couponService->confirmReservation($reservation);
+                Log::info('Coupon reservation confirmed', [
+                    'registration_id' => $registration->id,
+                    'coupon_code' => $registration->coupon_code,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to confirm coupon reservation', [
+                    'registration_id' => $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Update Hubspot with confirmed status
+        if ($registration->event->hubspot_list_id) {
+            try {
+                $this->hubspotService->addContactToList(
+                    $registration->email,
+                    $registration->event->hubspot_list_id,
+                    ['registration_status' => 'confirmed']
+                );
+            } catch (\Exception $e) {
+                Log::warning('Failed to update Hubspot', [
+                    'registration_id' => $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('Payment succeeded - registration confirmed', [
             'registration_id' => $registration->id,
             'amount' => $amountPaid,
+            'payment_status' => $registration->payment_status,
+            'registration_status' => 'confirmed',
         ]);
 
         return [
             'handled' => true,
             'registration_id' => $registration->id,
             'amount_paid' => $amountPaid,
+            'status' => 'confirmed',
         ];
     }
 
     /**
      * Handle failed payment
+     * Release coupon reservation to allow retry
      */
     private function handlePaymentFailed($paymentIntent): array
     {
@@ -229,10 +330,31 @@ class StripeCheckoutService
         $registration = Registration::find($registrationId);
 
         if ($registration) {
-            $registration->update(['payment_status' => 'failed']);
+            // Update status to payment_failed (allows retry)
+            $registration->update([
+                'payment_status' => 'failed',
+                'registration_status' => 'payment_failed',
+            ]);
 
-            Log::warning('Payment failed', [
+            // Release coupon reservation so user can retry
+            if ($reservation = $registration->couponReservation) {
+                try {
+                    $this->couponService->releaseReservation($reservation);
+                    Log::info('Coupon reservation released after payment failure', [
+                        'registration_id' => $registration->id,
+                        'coupon_code' => $registration->coupon_code,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to release coupon reservation', [
+                        'registration_id' => $registration->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            Log::warning('Payment failed - registration can be retried', [
                 'registration_id' => $registration->id,
+                'registration_status' => 'payment_failed',
                 'reason' => $paymentIntent->last_payment_error->message ?? 'Unknown',
             ]);
         }
