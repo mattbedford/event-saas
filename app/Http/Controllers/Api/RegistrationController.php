@@ -48,6 +48,19 @@ class RegistrationController extends Controller
             ], 403);
         }
 
+        // Check event capacity
+        if (!$event->hasAvailableSeats()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sorry, this event is sold out! We have reached maximum capacity.',
+                'capacity_info' => [
+                    'max_seats' => $event->max_seats,
+                    'sold' => $event->paidRegistrationsCount(),
+                    'available' => 0,
+                ],
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'name' => 'required|string|max:255',
@@ -212,6 +225,14 @@ class RegistrationController extends Controller
                 'ticket_price' => $event->ticket_price,
                 'event_date' => $event->event_date->toIso8601String(),
                 'is_active' => $event->is_active,
+                'capacity' => [
+                    'max_seats' => $event->max_seats,
+                    'sold' => $event->paidRegistrationsCount(),
+                    'available' => $event->remainingSeats(),
+                    'has_available_seats' => $event->hasAvailableSeats(),
+                    'is_nearly_full' => $event->isNearlyFull(),
+                    'capacity_percentage' => $event->capacityPercentage(),
+                ],
             ],
         ]);
     }
@@ -284,6 +305,19 @@ class RegistrationController extends Controller
                     ->first()
                     ->only(['id', 'email', 'full_name', 'payment_status']),
             ], 409);
+        }
+
+        // Check event capacity (skip payment users still count against capacity)
+        if (!$event->hasAvailableSeats()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Event has reached maximum capacity',
+                'capacity_info' => [
+                    'max_seats' => $event->max_seats,
+                    'sold' => $event->paidRegistrationsCount(),
+                    'available' => 0,
+                ],
+            ], 403);
         }
 
         try {

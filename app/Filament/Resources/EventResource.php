@@ -51,6 +51,12 @@ class EventResource extends Resource
                                     ->prefix('CHF')
                                     ->helperText('Base ticket price before discounts'),
 
+                                Forms\Components\TextInput::make('max_seats')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->helperText('Maximum capacity. Leave empty for unlimited seats.')
+                                    ->suffix('seats'),
+
                                 Forms\Components\DateTimePicker::make('event_date')
                                     ->required()
                                     ->native(false),
@@ -154,6 +160,38 @@ class EventResource extends Resource
                     ->money('CHF')
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('max_seats')
+                    ->label('Capacity')
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => $state ?? 'Unlimited')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'gray' : 'success'),
+
+                Tables\Columns\TextColumn::make('registrations_count')
+                    ->counts([
+                        'registrations' => fn ($query) => $query->where('payment_status', 'paid')
+                    ])
+                    ->label('Sold')
+                    ->badge()
+                    ->color(fn ($record) => $record->isNearlyFull() ? 'danger' : 'success'),
+
+                Tables\Columns\TextColumn::make('capacity_info')
+                    ->label('Available')
+                    ->state(fn ($record) => $record->remainingSeats())
+                    ->formatStateUsing(function ($state, $record) {
+                        if ($state === null) {
+                            return '∞';
+                        }
+                        $percentage = $record->capacityPercentage();
+                        return "{$state} ({$percentage}% free)";
+                    })
+                    ->badge()
+                    ->color(fn ($record) => match(true) {
+                        !$record->hasAvailableSeats() => 'danger',
+                        $record->isNearlyFull() => 'warning',
+                        default => 'success',
+                    }),
+
                 Tables\Columns\TextColumn::make('event_date')
                     ->dateTime()
                     ->sortable(),
@@ -169,10 +207,6 @@ class EventResource extends Resource
                 Tables\Columns\IconColumn::make('settings.badges_enabled')
                     ->label('Badges')
                     ->boolean(),
-
-                Tables\Columns\TextColumn::make('registrations_count')
-                    ->counts('registrations')
-                    ->label('Registrations'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
