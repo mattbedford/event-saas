@@ -106,17 +106,33 @@ class BadgeBuilder extends Page
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('save')
-                ->label('Save Template')
-                ->action('saveTemplate')
-                ->color('success'),
+            Action::make('duplicate')
+                ->label('Duplicate from Event')
+                ->icon('heroicon-o-document-duplicate')
+                ->form([
+                    Forms\Components\Select::make('source_event_id')
+                        ->label('Copy template from')
+                        ->options(
+                            Event::where('id', '!=', $this->record->id)
+                                ->whereNotNull('settings->badge_template')
+                                ->pluck('name', 'id')
+                        )
+                        ->required()
+                        ->searchable(),
+                ])
+                ->action('duplicateTemplate'),
 
             Action::make('preview')
-                ->label('Preview Badge')
-                ->action('previewBadge')
+                ->label('Preview & Download')
+                ->icon('heroicon-o-eye')
                 ->color('primary')
-                ->openUrlInNewTab()
-                ->url(fn () => route('filament.admin.resources.events.badge-preview', ['record' => $this->record])),
+                ->action('downloadPreview'),
+
+            Action::make('save')
+                ->label('Save Template')
+                ->icon('heroicon-o-check')
+                ->action('saveTemplate')
+                ->color('success'),
         ];
     }
 
@@ -174,5 +190,65 @@ class BadgeBuilder extends Page
         foreach ($style as $key => $value) {
             $this->data['fields'][$index][$key] = $value;
         }
+    }
+
+    public function duplicateTemplate(array $data): void
+    {
+        $sourceEvent = Event::find($data['source_event_id']);
+
+        if (!$sourceEvent || !isset($sourceEvent->settings['badge_template'])) {
+            Notification::make()
+                ->title('Template not found')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $this->data = $sourceEvent->settings['badge_template'];
+
+        Notification::make()
+            ->title('Template duplicated successfully')
+            ->body('Template copied from ' . $sourceEvent->name . '. Click "Save Template" to apply.')
+            ->success()
+            ->send();
+    }
+
+    public function downloadPreview(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        // Create a mock registration for preview
+        $mockRegistration = new \App\Models\Registration([
+            'event_id' => $this->record->id,
+            'name' => 'John',
+            'surname' => 'Doe',
+            'full_name' => 'John Doe',
+            'company' => 'Acme Corporation',
+            'email' => 'john.doe@example.com',
+        ]);
+        $mockRegistration->event = $this->record;
+
+        // Temporarily save current template to event for preview
+        $originalSettings = $this->record->settings;
+        $tempSettings = $originalSettings ?? [];
+        $tempSettings['badge_template'] = $this->data;
+        $this->record->settings = $tempSettings;
+
+        // Generate PDF
+        $template = $this->data;
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('badges.custom-template', [
+            'registration' => $mockRegistration,
+            'event' => $this->record,
+            'template' => $template,
+        ]);
+
+        $width = ($template['width'] ?? 400) * 0.75;
+        $height = ($template['height'] ?? 300) * 0.75;
+        $pdf->setPaper([0, 0, $width, $height], 'landscape');
+
+        // Restore original settings
+        $this->record->settings = $originalSettings;
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'badge-preview.pdf');
     }
 }
