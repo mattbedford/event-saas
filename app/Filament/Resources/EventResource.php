@@ -111,6 +111,20 @@ class EventResource extends Resource
                                 ->url(fn ($record) => $record ? route('filament.admin.resources.events.integrations', $record) : null)
                                 ->color('primary')
                                 ->outlined(),
+
+                            Forms\Components\Actions\Action::make('charity_settings')
+                                ->label('Charity Donation')
+                                ->icon('heroicon-o-heart')
+                                ->url(fn ($record) => $record ? route('filament.admin.resources.events.charity-settings', $record) : null)
+                                ->color('primary')
+                                ->outlined(),
+
+                            Forms\Components\Actions\Action::make('invoice_settings')
+                                ->label('Invoice Settings')
+                                ->icon('heroicon-o-document-text')
+                                ->url(fn ($record) => $record ? route('filament.admin.resources.events.invoice-settings', $record) : null)
+                                ->color('primary')
+                                ->outlined(),
                         ])
                         ->fullWidth()
                         ->alignCenter(),
@@ -207,15 +221,24 @@ class EventResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\ExportBulkAction::make()
+                        ->label('Export to CSV')
+                        ->icon('heroicon-o-arrow-down-tray'),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
+            ])
+            ->headerActions([
+                Tables\Actions\ExportAction::make()
+                    ->label('Export All to CSV')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray'),
             ]);
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\TicketTypesRelationManager::class,
         ];
     }
 
@@ -228,6 +251,8 @@ class EventResource extends Resource
             'badge-builder' => Pages\BadgeBuilder::route('/{record}/badge-builder'),
             'registration-settings' => Pages\ManageRegistrationSettings::route('/{record}/registration-settings'),
             'integrations' => Pages\ManageIntegrations::route('/{record}/integrations'),
+            'charity-settings' => Pages\ManageCharitySettings::route('/{record}/charity-settings'),
+            'invoice-settings' => Pages\ManageInvoiceSettings::route('/{record}/invoice-settings'),
         ];
     }
 }
