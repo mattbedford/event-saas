@@ -98,6 +98,13 @@ class EventResource extends Resource
                     ->visible(fn ($record) => $record !== null)
                     ->schema([
                         Forms\Components\Actions::make([
+                            Forms\Components\Actions\Action::make('form_builder')
+                                ->label('Checkout Form Builder')
+                                ->icon('heroicon-o-list-bullet')
+                                ->url(fn ($record) => $record ? route('filament.admin.resources.events.form-builder', $record) : null)
+                                ->color('primary')
+                                ->outlined(),
+
                             Forms\Components\Actions\Action::make('registration_settings')
                                 ->label('Registration Settings')
                                 ->icon('heroicon-o-clipboard-document-check')
@@ -109,6 +116,13 @@ class EventResource extends Resource
                                 ->label('Integrations (Stripe, HubSpot)')
                                 ->icon('heroicon-o-puzzle-piece')
                                 ->url(fn ($record) => $record ? route('filament.admin.resources.events.integrations', $record) : null)
+                                ->color('primary')
+                                ->outlined(),
+
+                            Forms\Components\Actions\Action::make('api_settings')
+                                ->label('API & Webhooks')
+                                ->icon('heroicon-o-key')
+                                ->url(fn ($record) => $record ? route('filament.admin.resources.events.api-settings', $record) : null)
                                 ->color('primary')
                                 ->outlined(),
 
@@ -249,10 +263,12 @@ class EventResource extends Resource
             'create' => Pages\CreateEvent::route('/create'),
             'edit' => Pages\EditEvent::route('/{record}/edit'),
             'badge-builder' => Pages\BadgeBuilder::route('/{record}/badge-builder'),
+            'form-builder' => Pages\FormBuilder::route('/{record}/form-builder'),
             'registration-settings' => Pages\ManageRegistrationSettings::route('/{record}/registration-settings'),
             'integrations' => Pages\ManageIntegrations::route('/{record}/integrations'),
             'charity-settings' => Pages\ManageCharitySettings::route('/{record}/charity-settings'),
             'invoice-settings' => Pages\ManageInvoiceSettings::route('/{record}/invoice-settings'),
+            'api-settings' => Pages\ManageApiSettings::route('/{record}/api-settings'),
         ];
     }
 }
