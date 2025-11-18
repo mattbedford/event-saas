@@ -43,12 +43,12 @@ class RegistrationFactory extends Factory
     public function paid(): static
     {
         return $this->state(function (array $attributes) {
-            // Resolve event_id if it's a factory instance
-            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                $event = $attributes['event_id']->create();
-                $attributes['event_id'] = $event->id;
-            } else {
+            // Resolve event_id - check if it's numeric (an ID) or a factory instance
+            if (is_numeric($attributes['event_id'])) {
                 $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            } else {
+                // It's a factory instance, create the event
+                $event = $attributes['event_id']->create();
             }
 
             return [
@@ -68,12 +68,12 @@ class RegistrationFactory extends Factory
     public function partial(): static
     {
         return $this->state(function (array $attributes) {
-            // Resolve event_id if it's a factory instance
-            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                $event = $attributes['event_id']->create();
-                $attributes['event_id'] = $event->id;
-            } else {
+            // Resolve event_id - check if it's numeric (an ID) or a factory instance
+            if (is_numeric($attributes['event_id'])) {
                 $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            } else {
+                // It's a factory instance, create the event
+                $event = $attributes['event_id']->create();
             }
 
             $partialAmount = $event->ticket_price * 0.5;
@@ -95,12 +95,12 @@ class RegistrationFactory extends Factory
     public function failed(): static
     {
         return $this->state(function (array $attributes) {
-            // Resolve event_id if it's a factory instance
-            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                $event = $attributes['event_id']->create();
-                $attributes['event_id'] = $event->id;
-            } else {
+            // Resolve event_id - check if it's numeric (an ID) or a factory instance
+            if (is_numeric($attributes['event_id'])) {
                 $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            } else {
+                // It's a factory instance, create the event
+                $event = $attributes['event_id']->create();
             }
 
             return [
@@ -119,12 +119,12 @@ class RegistrationFactory extends Factory
     public function refunded(): static
     {
         return $this->state(function (array $attributes) {
-            // Resolve event_id if it's a factory instance
-            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                $event = $attributes['event_id']->create();
-                $attributes['event_id'] = $event->id;
-            } else {
+            // Resolve event_id - check if it's numeric (an ID) or a factory instance
+            if (is_numeric($attributes['event_id'])) {
                 $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            } else {
+                // It's a factory instance, create the event
+                $event = $attributes['event_id']->create();
             }
 
             return [
@@ -142,12 +142,12 @@ class RegistrationFactory extends Factory
     public function withCoupon(string $couponCode = null): static
     {
         return $this->state(function (array $attributes) use ($couponCode) {
-            // Resolve event_id if it's a factory instance
-            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                $event = $attributes['event_id']->create();
-                $attributes['event_id'] = $event->id;
-            } else {
+            // Resolve event_id - check if it's numeric (an ID) or a factory instance
+            if (is_numeric($attributes['event_id'])) {
                 $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            } else {
+                // It's a factory instance, create the event
+                $event = $attributes['event_id']->create();
             }
 
             $discountPercent = fake()->randomElement([10, 15, 20, 25, 50]);
@@ -169,11 +169,12 @@ class RegistrationFactory extends Factory
     {
         return $this->state(function (array $attributes) use ($ticketType) {
             if (!$ticketType) {
-                // Resolve event_id if it's a factory instance
-                if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
-                    $event = $attributes['event_id']->create();
-                } else {
+                // Resolve event_id - check if it's numeric (an ID) or a factory instance
+                if (is_numeric($attributes['event_id'])) {
                     $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+                } else {
+                    // It's a factory instance, create the event
+                    $event = $attributes['event_id']->create();
                 }
                 $ticketType = TicketType::factory()->for($event)->create();
             }
