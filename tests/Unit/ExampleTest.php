@@ -7,10 +7,12 @@ use PHPUnit\Framework\TestCase;
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * Basic sanity check that tests can run.
      */
-    public function test_that_true_is_true(): void
+    public function test_that_phpunit_works(): void
     {
         $this->assertTrue(true);
+        $this->assertEquals(2, 1 + 1);
+        $this->assertIsString('hello');
     }
 }

@@ -26,14 +26,14 @@ class RegistrationFactory extends Factory
             'event_id' => Event::factory(),
             'name' => $firstName,
             'surname' => $lastName,
-            'full_name' => $firstName . ' ' . $lastName,
             'email' => fake()->unique()->safeEmail(),
             'company' => fake()->company(),
             'phone' => fake()->phoneNumber(),
             'payment_status' => 'pending',
             'paid_amount' => 0,
+            'expected_amount' => 100, // Default expected amount
             'discount_amount' => 0,
-            'metadata' => [],
+            'additional_fields' => null,
         ];
     }
 
@@ -43,13 +43,21 @@ class RegistrationFactory extends Factory
     public function paid(): static
     {
         return $this->state(function (array $attributes) {
-            $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            // Resolve event_id if it's a factory instance
+            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                $event = $attributes['event_id']->create();
+                $attributes['event_id'] = $event->id;
+            } else {
+                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            }
 
             return [
+                'event_id' => $event->id,
                 'payment_status' => 'paid',
                 'paid_amount' => $event->ticket_price,
+                'expected_amount' => $event->ticket_price,
                 'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
-                'stripe_checkout_session_id' => 'cs_' . fake()->uuid(),
+                'stripe_session_id' => 'cs_' . fake()->uuid(),
             ];
         });
     }
@@ -60,13 +68,22 @@ class RegistrationFactory extends Factory
     public function partial(): static
     {
         return $this->state(function (array $attributes) {
-            $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            // Resolve event_id if it's a factory instance
+            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                $event = $attributes['event_id']->create();
+                $attributes['event_id'] = $event->id;
+            } else {
+                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            }
+
             $partialAmount = $event->ticket_price * 0.5;
 
             return [
+                'event_id' => $event->id,
                 'payment_status' => 'partial',
                 'paid_amount' => $partialAmount,
-                'discount_amount' => $event->ticket_price - $partialAmount,
+                'expected_amount' => $event->ticket_price,
+                'discount_amount' => 0,
                 'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
             ];
         });
@@ -77,22 +94,46 @@ class RegistrationFactory extends Factory
      */
     public function failed(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'payment_status' => 'failed',
-            'paid_amount' => 0,
-            'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
-        ]);
+        return $this->state(function (array $attributes) {
+            // Resolve event_id if it's a factory instance
+            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                $event = $attributes['event_id']->create();
+                $attributes['event_id'] = $event->id;
+            } else {
+                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            }
+
+            return [
+                'event_id' => $event->id,
+                'payment_status' => 'failed',
+                'paid_amount' => 0,
+                'expected_amount' => $event->ticket_price,
+                'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
+            ];
+        });
     }
 
     /**
-     * Cancelled registration
+     * Refunded registration
      */
-    public function cancelled(): static
+    public function refunded(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'payment_status' => 'cancelled',
-            'cancelled_at' => now(),
-        ]);
+        return $this->state(function (array $attributes) {
+            // Resolve event_id if it's a factory instance
+            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                $event = $attributes['event_id']->create();
+                $attributes['event_id'] = $event->id;
+            } else {
+                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            }
+
+            return [
+                'event_id' => $event->id,
+                'payment_status' => 'refunded',
+                'paid_amount' => 0,
+                'expected_amount' => $event->ticket_price,
+            ];
+        });
     }
 
     /**
@@ -101,13 +142,22 @@ class RegistrationFactory extends Factory
     public function withCoupon(string $couponCode = null): static
     {
         return $this->state(function (array $attributes) use ($couponCode) {
-            $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            // Resolve event_id if it's a factory instance
+            if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                $event = $attributes['event_id']->create();
+                $attributes['event_id'] = $event->id;
+            } else {
+                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+            }
+
             $discountPercent = fake()->randomElement([10, 15, 20, 25, 50]);
             $discountAmount = $event->ticket_price * ($discountPercent / 100);
 
             return [
+                'event_id' => $event->id,
                 'coupon_code' => $couponCode ?? 'SAVE' . $discountPercent,
                 'discount_amount' => $discountAmount,
+                'expected_amount' => $event->ticket_price - $discountAmount,
             ];
         });
     }
@@ -119,7 +169,12 @@ class RegistrationFactory extends Factory
     {
         return $this->state(function (array $attributes) use ($ticketType) {
             if (!$ticketType) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+                // Resolve event_id if it's a factory instance
+                if ($attributes['event_id'] instanceof \Illuminate\Database\Eloquent\Factories\Factory) {
+                    $event = $attributes['event_id']->create();
+                } else {
+                    $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
+                }
                 $ticketType = TicketType::factory()->for($event)->create();
             }
 
@@ -136,7 +191,7 @@ class RegistrationFactory extends Factory
     public function sponsor(): static
     {
         return $this->state(fn (array $attributes) => [
-            'metadata' => array_merge($attributes['metadata'] ?? [], [
+            'additional_fields' => array_merge($attributes['additional_fields'] ?? [], [
                 'attendee_type' => 'sponsor',
             ]),
         ]);
@@ -148,7 +203,7 @@ class RegistrationFactory extends Factory
     public function brand(): static
     {
         return $this->state(fn (array $attributes) => [
-            'metadata' => array_merge($attributes['metadata'] ?? [], [
+            'additional_fields' => array_merge($attributes['additional_fields'] ?? [], [
                 'attendee_type' => 'brand',
             ]),
         ]);
@@ -160,7 +215,7 @@ class RegistrationFactory extends Factory
     public function withHubSpot(): static
     {
         return $this->state(fn (array $attributes) => [
-            'hubspot_contact_id' => fake()->randomNumber(8, true),
+            'hubspot_id' => (string) fake()->randomNumber(8, true),
         ]);
     }
 }
