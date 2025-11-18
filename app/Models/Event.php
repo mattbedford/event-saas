@@ -21,6 +21,16 @@ class Event extends Model
         'event_date',
         'settings',
         'is_active',
+        'charity_enabled',
+        'charity_name',
+        'charity_description',
+        'charity_logo_url',
+        'charity_website_url',
+        'charity_donation_url',
+        'charity_suggested_amount',
+        'automatic_invoices_enabled',
+        'invoice_message',
+        'invoice_contact_email',
     ];
 
     protected $casts = [
@@ -28,6 +38,9 @@ class Event extends Model
         'settings' => 'array',
         'is_active' => 'boolean',
         'ticket_price' => 'decimal:2',
+        'charity_enabled' => 'boolean',
+        'charity_suggested_amount' => 'decimal:2',
+        'automatic_invoices_enabled' => 'boolean',
     ];
 
     /**
@@ -44,6 +57,22 @@ class Event extends Model
     public function coupons(): HasMany
     {
         return $this->hasMany(Coupon::class);
+    }
+
+    /**
+     * Get all ticket types for this event
+     */
+    public function ticketTypes(): HasMany
+    {
+        return $this->hasMany(TicketType::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Get all waitlist entries for this event
+     */
+    public function waitlists(): HasMany
+    {
+        return $this->hasMany(Waitlist::class);
     }
 
     /**
