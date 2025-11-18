@@ -42,24 +42,13 @@ class RegistrationFactory extends Factory
      */
     public function paid(): static
     {
-        return $this->state(function (array $attributes) {
-            // Resolve event_id - check if it's numeric (an ID) or a factory instance
-            if (is_numeric($attributes['event_id'])) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-            } else {
-                // It's a factory instance, create the event
-                $event = $attributes['event_id']->create();
-            }
-
-            return [
-                'event_id' => $event->id,
-                'payment_status' => 'paid',
-                'paid_amount' => $event->ticket_price,
-                'expected_amount' => $event->ticket_price,
-                'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
-                'stripe_session_id' => 'cs_' . fake()->uuid(),
-            ];
-        });
+        return $this->state(fn (array $attributes) => [
+            'payment_status' => 'paid',
+            'paid_amount' => 100, // Will be overridden in tests with actual event price
+            'expected_amount' => 100,
+            'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
+            'stripe_session_id' => 'cs_' . fake()->uuid(),
+        ]);
     }
 
     /**
@@ -67,26 +56,13 @@ class RegistrationFactory extends Factory
      */
     public function partial(): static
     {
-        return $this->state(function (array $attributes) {
-            // Resolve event_id - check if it's numeric (an ID) or a factory instance
-            if (is_numeric($attributes['event_id'])) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-            } else {
-                // It's a factory instance, create the event
-                $event = $attributes['event_id']->create();
-            }
-
-            $partialAmount = $event->ticket_price * 0.5;
-
-            return [
-                'event_id' => $event->id,
-                'payment_status' => 'partial',
-                'paid_amount' => $partialAmount,
-                'expected_amount' => $event->ticket_price,
-                'discount_amount' => 0,
-                'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
-            ];
-        });
+        return $this->state(fn (array $attributes) => [
+            'payment_status' => 'partial',
+            'paid_amount' => 50, // Half payment
+            'expected_amount' => 100,
+            'discount_amount' => 0,
+            'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
+        ]);
     }
 
     /**
@@ -94,23 +70,12 @@ class RegistrationFactory extends Factory
      */
     public function failed(): static
     {
-        return $this->state(function (array $attributes) {
-            // Resolve event_id - check if it's numeric (an ID) or a factory instance
-            if (is_numeric($attributes['event_id'])) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-            } else {
-                // It's a factory instance, create the event
-                $event = $attributes['event_id']->create();
-            }
-
-            return [
-                'event_id' => $event->id,
-                'payment_status' => 'failed',
-                'paid_amount' => 0,
-                'expected_amount' => $event->ticket_price,
-                'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
-            ];
-        });
+        return $this->state(fn (array $attributes) => [
+            'payment_status' => 'failed',
+            'paid_amount' => 0,
+            'expected_amount' => 100,
+            'stripe_payment_intent_id' => 'pi_' . fake()->uuid(),
+        ]);
     }
 
     /**
@@ -118,22 +83,11 @@ class RegistrationFactory extends Factory
      */
     public function refunded(): static
     {
-        return $this->state(function (array $attributes) {
-            // Resolve event_id - check if it's numeric (an ID) or a factory instance
-            if (is_numeric($attributes['event_id'])) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-            } else {
-                // It's a factory instance, create the event
-                $event = $attributes['event_id']->create();
-            }
-
-            return [
-                'event_id' => $event->id,
-                'payment_status' => 'refunded',
-                'paid_amount' => 0,
-                'expected_amount' => $event->ticket_price,
-            ];
-        });
+        return $this->state(fn (array $attributes) => [
+            'payment_status' => 'refunded',
+            'paid_amount' => 0,
+            'expected_amount' => 100,
+        ]);
     }
 
     /**
@@ -142,22 +96,13 @@ class RegistrationFactory extends Factory
     public function withCoupon(string $couponCode = null): static
     {
         return $this->state(function (array $attributes) use ($couponCode) {
-            // Resolve event_id - check if it's numeric (an ID) or a factory instance
-            if (is_numeric($attributes['event_id'])) {
-                $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-            } else {
-                // It's a factory instance, create the event
-                $event = $attributes['event_id']->create();
-            }
-
             $discountPercent = fake()->randomElement([10, 15, 20, 25, 50]);
-            $discountAmount = $event->ticket_price * ($discountPercent / 100);
+            $discountAmount = 100 * ($discountPercent / 100);
 
             return [
-                'event_id' => $event->id,
                 'coupon_code' => $couponCode ?? 'SAVE' . $discountPercent,
                 'discount_amount' => $discountAmount,
-                'expected_amount' => $event->ticket_price - $discountAmount,
+                'expected_amount' => 100 - $discountAmount,
             ];
         });
     }
@@ -165,25 +110,11 @@ class RegistrationFactory extends Factory
     /**
      * Registration with ticket type
      */
-    public function withTicketType(TicketType $ticketType = null): static
+    public function withTicketType(?int $ticketTypeId = null): static
     {
-        return $this->state(function (array $attributes) use ($ticketType) {
-            if (!$ticketType) {
-                // Resolve event_id - check if it's numeric (an ID) or a factory instance
-                if (is_numeric($attributes['event_id'])) {
-                    $event = Event::find($attributes['event_id']) ?? Event::factory()->create();
-                } else {
-                    // It's a factory instance, create the event
-                    $event = $attributes['event_id']->create();
-                }
-                $ticketType = TicketType::factory()->for($event)->create();
-            }
-
-            return [
-                'ticket_type_id' => $ticketType->id,
-                'event_id' => $ticketType->event_id,
-            ];
-        });
+        return $this->state(fn (array $attributes) => [
+            'ticket_type_id' => $ticketTypeId,
+        ]);
     }
 
     /**

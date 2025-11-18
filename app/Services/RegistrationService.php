@@ -163,6 +163,12 @@ class RegistrationService
                     'error' => $e->getMessage(),
                 ]);
             }
+        } else {
+            Log::error('Failed to release coupon', [
+                'registration_id' => $registration->id,
+                'coupon_code' => $registration->coupon_code,
+                'error' => 'Coupon not found',
+            ]);
         }
     }
 
