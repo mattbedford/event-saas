@@ -21,7 +21,7 @@ class WaitlistFactory extends Factory
         return [
             'event_id' => Event::factory(),
             'email' => fake()->unique()->safeEmail(),
-            'name' => fake()->name(),
+            'full_name' => fake()->name(),
             'status' => 'waiting',
         ];
     }

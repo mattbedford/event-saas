@@ -282,7 +282,7 @@ class CouponServiceTest extends TestCase
     public function it_allows_multiple_uses_within_limit()
     {
         $coupon = Coupon::factory()->create([
-            'usage_limit' => 5,
+            'max_uses' => 5,
             'used_count' => 0,
         ]);
 
@@ -298,10 +298,10 @@ class CouponServiceTest extends TestCase
     }
 
     /** @test */
-    public function it_prevents_exceeding_usage_limit()
+    public function it_prevents_exceeding_max_uses()
     {
         $coupon = Coupon::factory()->create([
-            'usage_limit' => 2,
+            'max_uses' => 2,
             'used_count' => 0,
         ]);
 
