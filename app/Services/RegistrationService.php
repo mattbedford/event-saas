@@ -114,16 +114,7 @@ class RegistrationService
     public function cancelRegistration(Registration $registration): void
     {
         DB::transaction(function () use ($registration) {
-            // Release coupon if one was used
-            if ($registration->coupon_code) {
-                $coupon = $registration->event->coupons()
-                    ->byCode($registration->coupon_code)
-                    ->first();
-
-                if ($coupon) {
-                    $this->couponService->releaseCoupon($coupon);
-                }
-            }
+            $this->releaseCouponForRegistration($registration);
 
             $registration->delete();
 
@@ -140,19 +131,39 @@ class RegistrationService
             // Update payment status
             $registration->update(['payment_status' => 'refunded']);
 
-            // Release coupon
-            if ($registration->coupon_code) {
-                $coupon = $registration->event->coupons()
-                    ->byCode($registration->coupon_code)
-                    ->first();
-
-                if ($coupon) {
-                    $this->couponService->releaseCoupon($coupon);
-                }
-            }
+            $this->releaseCouponForRegistration($registration);
 
             Log::info('Registration refunded', ['id' => $registration->id]);
         });
+    }
+
+    /**
+     * Release coupon reservation for a registration
+     */
+    private function releaseCouponForRegistration(Registration $registration): void
+    {
+        if (!$registration->coupon_code) {
+            return;
+        }
+
+        $coupon = $registration->event->coupons()
+            ->byCode($registration->coupon_code)
+            ->first();
+
+        if ($coupon) {
+            try {
+                $this->couponService->releaseCoupon($coupon);
+                Log::info('Coupon released', [
+                    'registration_id' => $registration->id,
+                    'coupon_code' => $registration->coupon_code,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to release coupon', [
+                    'registration_id' => $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

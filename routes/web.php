@@ -3,9 +3,9 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-// Public route - redirects to login
+// Public route - redirects to admin
 Route::get('/', function () {
-    return redirect()->route('login');
+    return redirect('/admin');
 });
 
 // ALL application routes require authentication

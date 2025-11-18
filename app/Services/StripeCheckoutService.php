@@ -15,7 +15,10 @@ class StripeCheckoutService
         private CouponService $couponService,
         private HubspotService $hubspotService
     ) {
+        // Initialize Stripe API key once in constructor
+        Stripe::setApiKey(config('services.stripe.secret_key'));
     }
+
     /**
      * Create a Stripe Checkout Session for a registration
      */
@@ -25,36 +28,36 @@ class StripeCheckoutService
         string $successUrl,
         string $cancelUrl
     ): StripeSession {
-        // Set shared Stripe API key
-        Stripe::setApiKey(config('services.stripe.secret_key'));
 
         $lineItemData = [
             'quantity' => 1,
         ];
+
+        $currency = config('services.stripe.currency', 'chf');
 
         // Use event's Stripe Product ID if available, otherwise create inline price data
         if ($event->stripe_product_id) {
             // Create a price for the existing product
             $price = \Stripe\Price::create([
                 'product' => $event->stripe_product_id,
-                'unit_amount' => (int) ($registration->expected_amount * 100), // Stripe uses cents
-                'currency' => 'chf', // Swiss Francs for event pricing
+                'unit_amount' => $this->toStripeAmount($registration->expected_amount),
+                'currency' => $currency,
             ]);
             $lineItemData['price'] = $price->id;
         } else {
             // Fallback to inline price data
             $lineItemData['price_data'] = [
-                'currency' => 'chf',
+                'currency' => $currency,
                 'product_data' => [
                     'name' => $event->name . ' - Registration',
                     'description' => "Registration for {$registration->full_name}",
                 ],
-                'unit_amount' => (int) ($registration->expected_amount * 100), // Stripe uses cents
+                'unit_amount' => $this->toStripeAmount($registration->expected_amount),
             ];
         }
 
         $sessionData = [
-            'payment_method_types' => ['card'],
+            'payment_method_types' => config('services.stripe.payment_methods', ['card']),
             'line_items' => [$lineItemData],
             'mode' => 'payment',
             'success_url' => $successUrl,
@@ -92,8 +95,6 @@ class StripeCheckoutService
      */
     public function handleWebhook(string $payload, string $sigHeader): array
     {
-        // Set shared Stripe API key
-        Stripe::setApiKey(config('services.stripe.secret_key'));
 
         try {
             $stripeEvent = Webhook::constructEvent(
@@ -396,7 +397,22 @@ class StripeCheckoutService
      */
     public function getSession(string $sessionId): StripeSession
     {
-        Stripe::setApiKey(config('services.stripe.secret_key'));
         return StripeSession::retrieve($sessionId);
+    }
+
+    /**
+     * Convert amount to Stripe format (cents)
+     */
+    private function toStripeAmount(float $amount): int
+    {
+        return (int) ($amount * 100);
+    }
+
+    /**
+     * Convert Stripe amount (cents) to decimal
+     */
+    private function fromStripeAmount(int $amount): float
+    {
+        return $amount / 100;
     }
 }

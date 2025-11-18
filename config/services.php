@@ -43,11 +43,16 @@ return [
         'public_key' => env('STRIPE_PUBLIC_KEY'),
         'secret_key' => env('STRIPE_SECRET_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'currency' => env('STRIPE_CURRENCY', 'chf'),
+        'payment_methods' => ['card'],
     ],
 
     'hubspot' => [
         'api_key' => env('HUBSPOT_API_KEY'),
         'portal_id' => env('HUBSPOT_PORTAL_ID'),
+        'timeout' => env('HUBSPOT_API_TIMEOUT', 10),
+        'base_uri' => env('HUBSPOT_BASE_URI', 'https://api.hubapi.com/'),
+        'default_company_limit' => env('HUBSPOT_DEFAULT_LIMIT', 100),
     ],
 
     'brevo' => [
