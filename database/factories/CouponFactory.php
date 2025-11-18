@@ -23,7 +23,7 @@ class CouponFactory extends Factory
             'code' => strtoupper(fake()->bothify('????##')),
             'discount_type' => fake()->randomElement(['percentage', 'fixed']),
             'discount_value' => fake()->randomFloat(2, 10, 50),
-            'usage_limit' => fake()->numberBetween(5, 100),
+            'max_uses' => fake()->numberBetween(5, 100),
             'used_count' => 0,
             'is_active' => true,
         ];
@@ -59,7 +59,7 @@ class CouponFactory extends Factory
     public function singleUse(): static
     {
         return $this->state(fn (array $attributes) => [
-            'usage_limit' => 1,
+            'max_uses' => 1,
         ]);
     }
 
@@ -69,9 +69,9 @@ class CouponFactory extends Factory
     public function nearlyExhausted(): static
     {
         return $this->state(function (array $attributes) {
-            $limit = $attributes['usage_limit'] ?? 10;
+            $limit = $attributes['max_uses'] ?? 10;
             return [
-                'usage_limit' => $limit,
+                'max_uses' => $limit,
                 'used_count' => $limit - 1,
             ];
         });
@@ -83,35 +83,14 @@ class CouponFactory extends Factory
     public function exhausted(): static
     {
         return $this->state(function (array $attributes) {
-            $limit = $attributes['usage_limit'] ?? 10;
+            $limit = $attributes['max_uses'] ?? 10;
             return [
-                'usage_limit' => $limit,
+                'max_uses' => $limit,
                 'used_count' => $limit,
             ];
         });
     }
 
-    /**
-     * Currently reserved coupon
-     */
-    public function reserved(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'reserved_at' => now()->subMinutes(5),
-            'reserved_by_email' => fake()->email(),
-        ]);
-    }
-
-    /**
-     * Reservation expired
-     */
-    public function reservationExpired(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'reserved_at' => now()->subMinutes(20), // Assuming 15-min timeout
-            'reserved_by_email' => fake()->email(),
-        ]);
-    }
 
     /**
      * Inactive coupon
