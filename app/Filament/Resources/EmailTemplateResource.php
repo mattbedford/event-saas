@@ -56,11 +56,24 @@ class EmailTemplateResource extends Resource
 
                 Forms\Components\Section::make('Email Content')
                     ->schema([
+                        Forms\Components\Actions::make([
+                            Forms\Components\Actions\Action::make('email_builder')
+                                ->label('Visual Email Builder')
+                                ->icon('heroicon-o-paint-brush')
+                                ->url(fn ($record) => $record ? route('filament.admin.resources.email-templates.email-builder', $record) : null)
+                                ->visible(fn ($record) => $record !== null)
+                                ->color('primary')
+                                ->outlined(),
+                        ])
+                        ->fullWidth()
+                        ->alignCenter()
+                        ->visible(fn ($record) => $record !== null),
+
                         Forms\Components\RichEditor::make('html_content')
                             ->label('HTML Content')
                             ->required()
                             ->columnSpanFull()
-                            ->helperText('Use {{variable_name}} for dynamic content')
+                            ->helperText('Use {{variable_name}} for dynamic content - or use the Visual Email Builder above')
                             ->toolbarButtons([
                                 'bold',
                                 'italic',
@@ -142,6 +155,11 @@ class EmailTemplateResource extends Resource
                     ->label('System Templates'),
             ])
             ->actions([
+                Tables\Actions\Action::make('email_builder')
+                    ->label('Visual Builder')
+                    ->icon('heroicon-o-paint-brush')
+                    ->color('primary')
+                    ->url(fn ($record) => route('filament.admin.resources.email-templates.email-builder', $record)),
                 Tables\Actions\Action::make('preview')
                     ->label('Preview')
                     ->icon('heroicon-o-eye')
@@ -193,6 +211,7 @@ class EmailTemplateResource extends Resource
             'index' => Pages\ListEmailTemplates::route('/'),
             'create' => Pages\CreateEmailTemplate::route('/create'),
             'edit' => Pages\EditEmailTemplate::route('/{record}/edit'),
+            'email-builder' => Pages\EmailBuilder::route('/{record}/email-builder'),
         ];
     }
 }

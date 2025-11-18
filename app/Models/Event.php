@@ -31,6 +31,10 @@ class Event extends Model
         'automatic_invoices_enabled',
         'invoice_message',
         'invoice_contact_email',
+        'api_key',
+        'webhook_url',
+        'webhook_events',
+        'webhook_secret',
     ];
 
     protected $casts = [
@@ -41,6 +45,12 @@ class Event extends Model
         'charity_enabled' => 'boolean',
         'charity_suggested_amount' => 'decimal:2',
         'automatic_invoices_enabled' => 'boolean',
+        'webhook_events' => 'array',
+    ];
+
+    protected $hidden = [
+        'api_key',
+        'webhook_secret',
     ];
 
     /**
@@ -180,5 +190,45 @@ class Event extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Generate a new API key for this event
+     */
+    public function generateApiKey(): string
+    {
+        $apiKey = 'evt_' . bin2hex(random_bytes(32));
+        $this->update(['api_key' => $apiKey]);
+        return $apiKey;
+    }
+
+    /**
+     * Generate a new webhook secret
+     */
+    public function generateWebhookSecret(): string
+    {
+        $secret = 'whsec_' . bin2hex(random_bytes(32));
+        $this->update(['webhook_secret' => $secret]);
+        return $secret;
+    }
+
+    /**
+     * Check if webhook is configured
+     */
+    public function hasWebhook(): bool
+    {
+        return !empty($this->webhook_url) && !empty($this->webhook_events);
+    }
+
+    /**
+     * Check if a specific event type is enabled for webhooks
+     */
+    public function webhookEnabled(string $eventType): bool
+    {
+        if (!$this->hasWebhook()) {
+            return false;
+        }
+
+        return in_array($eventType, $this->webhook_events ?? []);
     }
 }
