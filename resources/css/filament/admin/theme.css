@@ -1,0 +1,330 @@
+@import '/vendor/filament/filament/resources/css/theme.css';
+
+@config 'tailwind.config.js';
+
+/* Brand Color Variables */
+:root {
+    --brand-blue: #1e73be;
+    --brand-green: #94c11f;
+    --color-black: #000000;
+    --color-dark: #0a0a0f;
+    --color-dark-2: #1a1a24;
+    --color-dark-3: #2a2a38;
+    --color-gray: #3f3f52;
+    --color-gray-2: #6b6b7f;
+    --color-gray-3: #9696a5;
+    --color-light: #e8e8f0;
+    --color-light-2: #f5f5fa;
+    --color-light-3: #ffffff;
+}
+
+/* Clean, Professional Typography */
+.fi-body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sidebar Styling - Professional, Clean */
+.fi-sidebar {
+    background-color: var(--color-light-3);
+    border-right: 1px solid var(--color-light);
+}
+
+.fi-sidebar-nav-item {
+    transition: all 0.2s ease;
+}
+
+.fi-sidebar-nav-item:hover {
+    background-color: var(--color-light-2);
+}
+
+.fi-sidebar-nav-item.active {
+    background-color: rgba(30, 115, 190, 0.1);
+    border-left: 3px solid var(--brand-blue);
+}
+
+/* Navigation Group Headers - Subtle and Clean */
+.fi-sidebar-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gray-2);
+    padding-left: 1rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Cards and Panels - Clean, Minimal Shadows */
+.fi-section,
+.fi-card {
+    border-radius: 0.5rem;
+    background-color: var(--color-light-3);
+    border: 1px solid var(--color-light);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Tables - Professional, Stripe-like */
+.fi-table {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.fi-table-header-cell {
+    background-color: var(--color-light-2);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gray);
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--color-light);
+}
+
+.fi-table-row:hover {
+    background-color: var(--color-light-2);
+    transition: background-color 0.15s ease;
+}
+
+/* Buttons - Clean, Professional */
+.fi-btn-primary {
+    background-color: var(--brand-blue);
+    border-color: var(--brand-blue);
+    transition: all 0.2s ease;
+}
+
+.fi-btn-primary:hover {
+    background-color: #1a5f9e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(30, 115, 190, 0.3);
+}
+
+.fi-btn {
+    font-weight: 500;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+}
+
+.fi-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Form Inputs - Clean, Modern */
+.fi-input {
+    border-color: var(--color-light);
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+}
+
+.fi-input:focus {
+    border-color: var(--brand-blue);
+    box-shadow: 0 0 0 3px rgba(30, 115, 190, 0.1);
+}
+
+/* Badges - Consistent, Professional */
+.fi-badge {
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    letter-spacing: 0.025em;
+}
+
+/* Stats Widgets - Clean, Card-like */
+.fi-stats-card {
+    background: linear-gradient(135deg, var(--color-light-3) 0%, var(--color-light-2) 100%);
+    border: 1px solid var(--color-light);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+}
+
+.fi-stats-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+/* Header - Clean, Professional */
+.fi-topbar {
+    background-color: var(--color-light-3);
+    border-bottom: 1px solid var(--color-light);
+}
+
+/* Dropdown Menus - Clean Shadow */
+.fi-dropdown-panel {
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-light);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* User Menu - Professional */
+.fi-user-menu {
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.fi-user-menu:hover {
+    background-color: var(--color-light-2);
+}
+
+/* Notifications - Clean, Minimal */
+.fi-notification {
+    border-radius: 0.5rem;
+    border-left: 4px solid var(--brand-blue);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.fi-notification-success {
+    border-left-color: #10b981;
+}
+
+.fi-notification-danger {
+    border-left-color: #ef4444;
+}
+
+.fi-notification-warning {
+    border-left-color: #f59e0b;
+}
+
+/* Modal - Professional Overlay */
+.fi-modal-window {
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Loading States - Smooth */
+.fi-loading {
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+}
+
+/* Focus States - Consistent Brand Color */
+*:focus-visible {
+    outline: 2px solid var(--brand-blue);
+    outline-offset: 2px;
+}
+
+/* Scrollbar Styling - Clean, Minimal */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-light-2);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-gray-3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-gray-2);
+}
+
+/* Custom Dashboard Styling */
+.fi-dashboard-grid {
+    gap: 1.5rem;
+}
+
+/* Action Buttons - Consistent Spacing */
+.fi-action-group {
+    gap: 0.5rem;
+}
+
+/* Status Indicators - Professional */
+.fi-status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Charts - Clean, Minimal */
+.fi-chart {
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+/* Breadcrumbs - Clean Navigation */
+.fi-breadcrumbs {
+    font-size: 0.875rem;
+    color: var(--color-gray-2);
+}
+
+.fi-breadcrumbs a {
+    color: var(--brand-blue);
+    transition: color 0.2s ease;
+}
+
+.fi-breadcrumbs a:hover {
+    color: #1a5f9e;
+    text-decoration: underline;
+}
+
+/* Empty States - Friendly, Professional */
+.fi-empty-state {
+    padding: 3rem;
+    text-align: center;
+    color: var(--color-gray-2);
+}
+
+/* Tabs - Clean, Minimal */
+.fi-tabs-item {
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.fi-tabs-item.active {
+    color: var(--brand-blue);
+    border-bottom-color: var(--brand-blue);
+}
+
+/* Toggle Switches - Brand Color */
+.fi-toggle-switch:checked {
+    background-color: var(--brand-blue);
+}
+
+/* Section Headers - Professional Typography */
+.fi-section-header {
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: var(--color-dark);
+    margin-bottom: 0.5rem;
+}
+
+.fi-section-description {
+    font-size: 0.875rem;
+    color: var(--color-gray-2);
+    line-height: 1.5;
+}
+
+/* Professional Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fi-slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Utility Classes */
+.brand-text-blue {
+    color: var(--brand-blue);
+}
+
+.brand-bg-blue {
+    background-color: var(--brand-blue);
+}
+
+.brand-border-blue {
+    border-color: var(--brand-blue);
+}
